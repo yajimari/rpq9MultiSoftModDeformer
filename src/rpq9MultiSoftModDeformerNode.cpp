@@ -555,10 +555,10 @@ void Rpq9MultiSoftModGPUDeformer::prepareKernels(){
     const int kernelNum = Rpq9MultiSoftModDeformer::kernelNames.size();
     if (kernelNum == kernelInfoArray.size()) return;
     kernelInfoArray.resize(kernelNum);
-    for(int i=0; i<kernelNum; ++i){
-        kernelInfoArray[i] = MOpenCLInfo::getOpenCLKernelFromString (Rpq9MultiSoftModDeformer::kernelSource,
-                                            Rpq9MultiSoftModDeformer::kernelProgramName,
-                                            Rpq9MultiSoftModDeformer::kernelNames[i]);
+    for(std::size_t i=0; i<kernelNum; ++i){
+        kernelInfoArray[i] = MOpenCLInfo::getOpenCLKernelFromString(Rpq9MultiSoftModDeformer::kernelSource,
+                                                                    Rpq9MultiSoftModDeformer::kernelProgramName,
+                                                                    Rpq9MultiSoftModDeformer::kernelNames[i]);
     }
 }
 
@@ -667,7 +667,7 @@ void Rpq9MultiSoftModGPUDeformer::terminate(){
     scalesBuffer.reset();
     shearsBuffer.reset();
     falloffRadiusValuesBuffer.reset();
-    for(int i=0; i<kernelInfoArray.size(); ++i){
+    for(std::size_t i=0; i<kernelInfoArray.size(); ++i){
         MOpenCLInfo::releaseOpenCLKernel(kernelInfoArray[i]);
     }
     kernelInfoArray.clear();

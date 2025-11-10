@@ -113,7 +113,7 @@ public:
     static bool validateNodeValues(MDataBlock& block, const MEvaluationNode&, const MPlug& plug, MStringArray* messages);
 
 private:
-    void Rpq9MultiSoftModGPUDeformer::prepareKernels();
+    void prepareKernels();
 
 public:
     static const char* kRegistrantId;

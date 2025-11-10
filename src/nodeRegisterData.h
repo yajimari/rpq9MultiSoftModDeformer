@@ -24,7 +24,7 @@ SOFTWARE.
 #pragma once
 
 //--- Required to change value when modifying code 
-constexpr char* RPQ9_MULTI_SOFT_MOD_DEFORMER_NODE_NAME = "rpq9MultiSoftMod";
-constexpr int RPQ9_MULTI_SOFT_MOD_DEFORMER_NODE_ID = 0x00141700;
-constexpr char* RPQ9_MULTI_SOFT_MOD_GPU_DEFORMER_REGISTRANT_ID = "rpq9MultiSoftModDeformerPlugin";
+constexpr const char* RPQ9_MULTI_SOFT_MOD_DEFORMER_NODE_NAME = "rpq9MultiSoftMod";
+constexpr const int RPQ9_MULTI_SOFT_MOD_DEFORMER_NODE_ID = 0x00141700;
+constexpr const char* RPQ9_MULTI_SOFT_MOD_GPU_DEFORMER_REGISTRANT_ID = "rpq9MultiSoftModDeformerPlugin";
 //---
