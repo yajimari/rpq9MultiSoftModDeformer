@@ -26,6 +26,7 @@ SOFTWARE.
 #include <maya/MPxDeformerNode.h>
 #include <maya/MItGeometry.h>
 
+#include <maya/MStatus.h>
 #include <maya/MTypeId.h>
 #include <maya/MPlug.h>
 
@@ -66,6 +67,7 @@ public:
     MStatus accessoryNodeSetup(MDagModifier& cmd) override;
 
     static unsigned int getInputDataData(MDataBlock& block,
+        std::vector<float>& localEnvelopeValues,
         std::vector<cl_float4>& centerPositions,
         std::vector<cl_float4>& translations,
         std::vector<cl_float4>& quaternions,
@@ -78,6 +80,7 @@ public:
     static MTypeId id;
 
     static MObject inputData;
+    static MObject localEnvelope;
     static MObject centerMatrix;
     static MObject modifyMatrix;
     static MObject falloffRadius;
@@ -119,6 +122,7 @@ public:
     static const char* kRegistrantId;
 
 private:
+    MOpenCLBuffer localEnvelopeBuffer;
     MOpenCLBuffer centerPositionsBuffer;
     MOpenCLBuffer translationsBuffer;
     MOpenCLBuffer quaternionsBuffer;

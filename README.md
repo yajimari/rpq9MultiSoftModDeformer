@@ -9,7 +9,7 @@
 
 - Each softMod is composited like a blendShape, so vertices where multiple softMods interfere are deformed intuitively.
 
-- When running multiple softMods, it will be faster than the standard softMod.
+- When running multiple softMods, it will be faster than the standard softMod.(In the scene created with test_rpq9MultiSoftMod.py, it ran faster than the standard version when there were around five to six or more softMod calculations.)
 
 - A dedicated handle node for the deformer is not required.
 

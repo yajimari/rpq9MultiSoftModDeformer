@@ -55,13 +55,13 @@ set(LIBRARIES
      clew
 )
 
-find_package(OpenMP REQUIRED)
-
 if(MSVC)
     add_compile_options(/utf-8)
 else()
     add_compile_options(-finput-charset=UTF-8 -fexec-charset=UTF-8)
 endif()
+
+find_tbb()
 
 build_plugin()
 
@@ -78,5 +78,3 @@ target_include_directories(${PROJECT_NAME} PRIVATE "${GENERATED_DIR}")
 target_sources(${PROJECT_NAME} PRIVATE 
                 "${MEL_EMBEDDED_HDR}"
                 "${KERNEL_EMBEDDED_HDR}")
-
-target_link_libraries(${PROJECT_NAME} OpenMP::OpenMP_CXX)

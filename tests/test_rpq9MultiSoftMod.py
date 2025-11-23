@@ -3,6 +3,7 @@ import random
 import maya.cmds as cmds
 
 PLUGIN_NAME = 'rpq9MultiSoftModDeformer'
+PLUGIN_NODE_NAME = 'rpq9MultiSoftMod'
 
 def createSphereCurve() -> str:
     numSides = 8
@@ -42,6 +43,8 @@ def createController() -> tuple[str]:
     modifyController = createCrossCurve()
     cluster, handle = cmds.cluster(centerController, modifyController, rel=True)
     cmds.parent(modifyController, handle, centerController)
+    cmds.addAttr(centerController, ln='envelope', min=0.0, max=1.0, dv=1.0, k=True)
+    cmds.addAttr(modifyController, ln='envelope', pxy=f'{centerController}.envelope')
     cmds.addAttr(centerController, ln='falloffRadius', min=0.0, dv=1.0, k=True)
     cmds.addAttr(modifyController, ln='falloffRadius', pxy=f'{centerController}.falloffRadius')
 
@@ -64,13 +67,30 @@ def createTestMultiSoftMod(num:int) -> list[list[str]]:
     if not cmds.pluginInfo(PLUGIN_NAME, q=True, loaded=True):
         cmds.loadPlugin(PLUGIN_NAME, qt=True)
     plane = cmds.polyPlane()
-    deformer = cmds.deformer(plane, type='rpq9MultiSoftMod')[0]
+    deformer = cmds.deformer(plane, type=PLUGIN_NODE_NAME)[0]
     controllers = []
     for i in range(num):
         centerController, modifyController = createController()
+        cmds.connectAttr(f'{centerController}.envelope', f'{deformer}.inputData[{i}].localEnvelope', f=True)
         cmds.connectAttr(f'{centerController}.wm[0]', f'{deformer}.inputData[{i}].centerMatrix', f=True)
         cmds.connectAttr(f'{modifyController}.wm[0]', f'{deformer}.inputData[{i}].modifyMatrix', f=True)
         cmds.connectAttr(f'{centerController}.falloffRadius', f'{deformer}.inputData[{i}].falloffRadius', f=True)
+        controllers.append([centerController, modifyController])
+    return controllers
+
+
+def createTestMultiSoftModSeries(num:int) -> list[list[str]]:
+    if not cmds.pluginInfo(PLUGIN_NAME, q=True, loaded=True):
+        cmds.loadPlugin(PLUGIN_NAME, qt=True)
+    plane = cmds.polyPlane()
+    controllers = []
+    for i in range(num):
+        deformer = cmds.deformer(plane, type='rpq9MultiSoftMod')[0]
+        centerController, modifyController = createController()
+        cmds.connectAttr(f'{centerController}.envelope', f'{deformer}.inputData[0].localEnvelope', f=True)
+        cmds.connectAttr(f'{centerController}.wm[0]', f'{deformer}.inputData[0].centerMatrix', f=True)
+        cmds.connectAttr(f'{modifyController}.wm[0]', f'{deformer}.inputData[0].modifyMatrix', f=True)
+        cmds.connectAttr(f'{centerController}.falloffRadius', f'{deformer}.inputData[0].falloffRadius', f=True)
         controllers.append([centerController, modifyController])
     return controllers
 
