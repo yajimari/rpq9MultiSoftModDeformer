@@ -35,6 +35,14 @@ static MStatus evalEmbeddedMel(){
 }
 
 
+static MStatus evalMakePaintable(){
+    MString code("makePaintable -attrType \"multiFloat\" -sm \"deformer\" \"");
+    code += Rpq9MultiSoftModDeformer::kPluginNodeName;
+    code += "\" \"weights\";";
+    return MGlobal::executeCommand(code, false, false);
+}
+
+
 MStatus initializePlugin( MObject obj ){
     MStatus status;
     MFnPlugin plugin( obj, "Ryoya Yajima", "1.0", "Any");
@@ -52,6 +60,9 @@ MStatus initializePlugin( MObject obj ){
     Rpq9MultiSoftModDeformer::kernelProgramName = "rpq9MultiSoftModDeformerKernels";
 
     status = evalEmbeddedMel();
+    if(!status)  return status;
+
+    status = evalMakePaintable();
     return status;
 }
 
