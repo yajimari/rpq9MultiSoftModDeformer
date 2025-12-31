@@ -23,6 +23,7 @@ SOFTWARE.
 */
 #pragma once
 #include<array>
+#include<map>
 #include <maya/MPxDeformerNode.h>
 #include <maya/MItGeometry.h>
 
@@ -43,6 +44,17 @@ SOFTWARE.
 #include <maya/MOpenCLUtils.h>
 
 #include "nodeRegisterData.h"
+
+
+struct softModData {
+    std::vector<float> localEnvelopeValues;
+    std::vector<cl_float4> centerPositions;
+    std::vector<cl_float4> translations;
+    std::vector<cl_float4> quaternions;
+    std::vector<cl_float4> scales;
+    std::vector<cl_float4> shears;
+    std::vector<float> falloffRadiusValues;
+};
 
 
 class Rpq9MultiSoftModDeformer : public MPxDeformerNode
@@ -66,15 +78,9 @@ public:
     MObject& accessoryAttribute() const override;
     MStatus accessoryNodeSetup(MDagModifier& cmd) override;
 
-    static unsigned int getInputDataData(MDataBlock& block,
-        std::vector<float>& localEnvelopeValues,
-        std::vector<cl_float4>& centerPositions,
-        std::vector<cl_float4>& translations,
-        std::vector<cl_float4>& quaternions,
-        std::vector<cl_float4>& scales,
-        std::vector<cl_float4>& shears,
-        std::vector<float>& falloffRadiusValues,
-        MStatus& status);
+    static unsigned int getInputDataData(   MDataBlock& block,
+                                            softModData& data,
+                                            MStatus& status);
 
 public:
     static MTypeId id;
@@ -98,6 +104,8 @@ public:
         kSmooth = 2,
         kEaseInOut = 3,
     };
+private:
+    std::map<unsigned int, softModData> softModDataCache;
 };
 
 
@@ -114,6 +122,7 @@ public:
     static MGPUDeformerRegistrationInfo* getGPUDeformerInfo();
     static bool validateNodeInGraph(MDataBlock& block, const MEvaluationNode&, const MPlug& plug, MStringArray* messages);
     static bool validateNodeValues(MDataBlock& block, const MEvaluationNode&, const MPlug& plug, MStringArray* messages);
+    bool passThroughWithZeroEnvelope() const override;
 
 private:
     void prepareKernels();
@@ -129,6 +138,7 @@ private:
     MOpenCLBuffer scalesBuffer;
     MOpenCLBuffer shearsBuffer;
     MOpenCLBuffer falloffRadiusValuesBuffer;
+    softModData softModDataCache;
 
     std::vector<MAutoCLKernel> kernelInfoArray;
 };

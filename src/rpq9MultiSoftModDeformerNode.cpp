@@ -368,13 +368,7 @@ MStatus Rpq9MultiSoftModDeformer::prepareDeform(MDataBlock& block, unsigned int 
 
 
 unsigned int Rpq9MultiSoftModDeformer::getInputDataData(MDataBlock& block,
-                                                        std::vector<float>& localEnvelopeValues,
-                                                        std::vector<cl_float4>& centerPositions,
-                                                        std::vector<cl_float4>& translations,
-                                                        std::vector<cl_float4>& quaternions,
-                                                        std::vector<cl_float4>& scales,
-                                                        std::vector<cl_float4>& shears,
-                                                        std::vector<float>& falloffRadiusValues,
+                                                        softModData& data,
                                                         MStatus& status) 
 {
     MArrayDataHandle inputDataArrayDataHandle = block.inputArrayValue(Rpq9MultiSoftModDeformer::inputData, &status);
@@ -383,56 +377,58 @@ unsigned int Rpq9MultiSoftModDeformer::getInputDataData(MDataBlock& block,
     unsigned int inputDataNum = inputDataArrayDataHandle.elementCount();
     if (inputDataNum <= 0) return 0;
 
-    localEnvelopeValues.resize(inputDataNum);
-    centerPositions.resize(inputDataNum);
-    translations.resize(inputDataNum);
-    quaternions.resize(inputDataNum);
-    scales.resize(inputDataNum);
-    shears.resize(inputDataNum);
-    falloffRadiusValues.resize(inputDataNum);
+    data.localEnvelopeValues.resize(inputDataNum);
+    data.centerPositions.resize(inputDataNum);
+    data.translations.resize(inputDataNum);
+    data.quaternions.resize(inputDataNum);
+    data.scales.resize(inputDataNum);
+    data.shears.resize(inputDataNum);
+    data.falloffRadiusValues.resize(inputDataNum);
 
+    MFnMatrixData fnMat;
 
     for (unsigned int i = 0; i < inputDataNum; ++i) {
         MDataHandle inputDataDataHandle = inputDataArrayDataHandle.inputValue();
         MDataHandle childHandle = inputDataDataHandle.child(Rpq9MultiSoftModDeformer::localEnvelope);
-        localEnvelopeValues[i] = childHandle.asFloat();
+        data.localEnvelopeValues[i] = childHandle.asFloat();
 
         childHandle = inputDataDataHandle.child(Rpq9MultiSoftModDeformer::centerMatrix);
-        MMatrix centerMatrixValue = MFnMatrixData(childHandle.data()).matrix();
-        centerPositions[i] = to_cl_float4(centerMatrixValue(3, 0), centerMatrixValue(3, 1), centerMatrixValue(3, 2), 1.0);
+        fnMat.setObject(childHandle.data());
+        MMatrix centerMatrixValue = fnMat.matrix();
+        const double centerX = centerMatrixValue(3, 0);
+        const double centerY = centerMatrixValue(3, 1);
+        const double centerZ = centerMatrixValue(3, 2);
+        data.centerPositions[i] = to_cl_float4(centerX, centerY, centerZ, 1.0);
 
         childHandle = inputDataDataHandle.child(Rpq9MultiSoftModDeformer::modifyMatrix);
-        MMatrix matrix = MFnMatrixData(childHandle.data()).matrix();
+        fnMat.setObject(childHandle.data());
+        MMatrix matrix = fnMat.matrix();
 
         MMatrix localCenterMatrixInverseValue = centerMatrixValue.inverse();
-        localCenterMatrixInverseValue(3, 0) = 0.0;
-        localCenterMatrixInverseValue(3, 1) = 0.0;
-        localCenterMatrixInverseValue(3, 2) = 0.0;
+        localCenterMatrixInverseValue(3, 0) = localCenterMatrixInverseValue(3, 1) = localCenterMatrixInverseValue(3, 2) = 0.0;
 
-        matrix(3, 0) -= centerPositions[i].x;
-        matrix(3, 1) -= centerPositions[i].y;
-        matrix(3, 2) -= centerPositions[i].z;
+        matrix(3, 0) -= centerX;
+        matrix(3, 1) -= centerY;
+        matrix(3, 2) -= centerZ;
 
         MMatrix transformMatrix = localCenterMatrixInverseValue * matrix;
         MTransformationMatrix transformationMatrix(transformMatrix);
 
         double temp3[3] = { 0.0f, 0.0f, 0.0f };
-        MVector translate = transformationMatrix.getTranslation(MSpace::kTransform);
-        translate.get(temp3);
-        translations[i] = to_cl_float4(temp3[0], temp3[1], temp3[2], 1.0);
+        data.translations[i] = to_cl_float4(transformMatrix(3, 0), transformMatrix(3, 1), transformMatrix(3, 2), 1.0);
 
         transformationMatrix.getScale(temp3, MSpace::kTransform);
-        scales[i] = to_cl_float4(temp3[0], temp3[1], temp3[2], 1.0);
+        data.scales[i] = to_cl_float4(temp3[0], temp3[1], temp3[2], 1.0);
 
         transformationMatrix.getShear(temp3, MSpace::kTransform);
-        shears[i] = to_cl_float4(temp3[0], temp3[1], temp3[2], 1.0);
+        data.shears[i] = to_cl_float4(temp3[0], temp3[1], temp3[2], 1.0);
 
         double temp4[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
         transformationMatrix.getRotationQuaternion(temp4[0], temp4[1], temp4[2], temp4[3]);
-        quaternions[i] = to_cl_float4(temp4[0], temp4[1], temp4[2], temp4[3]);
+        data.quaternions[i] = to_cl_float4(temp4[0], temp4[1], temp4[2], temp4[3]);
 
         childHandle = inputDataDataHandle.child(Rpq9MultiSoftModDeformer::falloffRadius);
-        falloffRadiusValues[i] = childHandle.asFloat();
+        data.falloffRadiusValues[i] = childHandle.asFloat();
 
         inputDataArrayDataHandle.next();
     }
@@ -447,16 +443,10 @@ MStatus Rpq9MultiSoftModDeformer::deform(MDataBlock& block, MItGeometry& iter, c
     MDataHandle envDataHandle = block.inputValue(envelope, &status);
     if (MS::kSuccess != status) return status;
     float deformerEnvelope = envDataHandle.asFloat();
+    if (deformerEnvelope == 0.0) return status;
 
-    std::vector<float> localEnvelopeValues;
-    std::vector<cl_float4> centerPositions;
-    std::vector<cl_float4> translations;
-    std::vector<cl_float4> quaternions;
-    std::vector<cl_float4> scales;
-    std::vector<cl_float4> shears;
-    std::vector<float> falloffRadiusValues;
-
-    unsigned int inputDataNum = Rpq9MultiSoftModDeformer::getInputDataData(block, localEnvelopeValues, centerPositions, translations, quaternions, scales, shears, falloffRadiusValues, status);
+    softModData& currentIndexData = softModDataCache[multiIndex];
+    unsigned int inputDataNum = Rpq9MultiSoftModDeformer::getInputDataData(block, currentIndexData, status);
 
     MDataHandle falloffModeDataHandle = block.inputValue(falloffMode, &status);
     if (MS::kSuccess != status) return status;
@@ -500,22 +490,22 @@ MStatus Rpq9MultiSoftModDeformer::deform(MDataBlock& block, MItGeometry& iter, c
         cl_float4 addPt{ 0.0f, 0.0f, 0.0f, 0.0f };
 
         for(unsigned int j = 0; j < inputDataNum; ++j){
-            cl_float4 distanceVector = centerPositions[j] - clPt;
+            cl_float4 distanceVector = currentIndexData.centerPositions[j] - clPt;
             float distanceFromCenter = length3(distanceVector);
-            if (distanceFromCenter > falloffRadiusValues[j]) continue;
+            if (distanceFromCenter > currentIndexData.falloffRadiusValues[j]) continue;
 
-            const float falloffWeight = falloffWeightFunc(distanceFromCenter, falloffRadiusValues[j]);
-            const cl_float4 weightedTranslate  = lerp(zeroVector, translations[j],  falloffWeight);
-            const cl_float4 weightedScale      = lerp(oneVector,  scales[j],        falloffWeight);
-            const cl_float4 weightedShear      = lerp(zeroVector, shears[j],        falloffWeight);
-            const cl_float4 weightedQuaternion = slerp(zeroVector, quaternions[j],  falloffWeight);
+            const float falloffWeight = falloffWeightFunc(distanceFromCenter, currentIndexData.falloffRadiusValues[j]);
+            const cl_float4 weightedTranslate  = lerp(zeroVector, currentIndexData.translations[j],  falloffWeight);
+            const cl_float4 weightedScale      = lerp(oneVector, currentIndexData.scales[j],        falloffWeight);
+            const cl_float4 weightedShear      = lerp(zeroVector, currentIndexData.shears[j],        falloffWeight);
+            const cl_float4 weightedQuaternion = slerp(zeroVector, currentIndexData.quaternions[j],  falloffWeight);
             const Mat4 transMat = composeMatrix(weightedTranslate, weightedQuaternion, weightedScale, weightedShear);
 
-            cl_float4 localPt = clPt - centerPositions[j];
+            cl_float4 localPt = clPt - currentIndexData.centerPositions[j];
             localPt.w = 1.0f;
 
             const cl_float4 newPtBase = multiply(transMat, localPt);
-            addPt = addPt + (newPtBase - localPt) * localEnvelopeValues[j];
+            addPt = addPt + (newPtBase - localPt) * currentIndexData.localEnvelopeValues[j];
         }
 
         const float weight = (vertWeights ? vertWeights[aid] * deformerEnvelope : deformerEnvelope);
@@ -581,6 +571,12 @@ bool Rpq9MultiSoftModGPUDeformer::validateNodeValues(MDataBlock& block, const ME
 }
 
 
+bool Rpq9MultiSoftModGPUDeformer::passThroughWithZeroEnvelope() const
+{
+    return true;
+}
+
+
 void Rpq9MultiSoftModGPUDeformer::prepareKernels(){
     const std::size_t kernelNum = Rpq9MultiSoftModDeformer::kernelNames.size();
     if (kernelNum == kernelInfoArray.size()) return;
@@ -611,27 +607,19 @@ MPxGPUDeformer::DeformerStatus Rpq9MultiSoftModGPUDeformer::evaluate(
     prepareAffectMapBuffer();
     prepareWeightsBuffer(evaluationNode);
 
-    std::vector<float> localEnvelopeValues;
-    std::vector<cl_float4> centerPositions;
-    std::vector<cl_float4> translations;
-    std::vector<cl_float4> quaternions;
-    std::vector<cl_float4> scales;
-    std::vector<cl_float4> shears;
-    std::vector<float> falloffRadiusValues;
-
-    unsigned int inputDataNum = Rpq9MultiSoftModDeformer::getInputDataData(block, localEnvelopeValues, centerPositions, translations, quaternions, scales, shears, falloffRadiusValues, status);
+    unsigned int inputDataNum = Rpq9MultiSoftModDeformer::getInputDataData(block, softModDataCache, status);
 
     MDataHandle falloffModeDataHandle = block.inputValue(Rpq9MultiSoftModDeformer::falloffMode, &status);
     if (MS::kSuccess != status) return MPxGPUDeformer::kDeformerFailure;
     short falloffModeValue = falloffModeDataHandle.asShort();
 
-    MOpenCLUtils::uploadToGPU(localEnvelopeValues, localEnvelopeBuffer, MOpenCLUtils::kBlocking);
-    MOpenCLUtils::uploadToGPU(centerPositions, centerPositionsBuffer, MOpenCLUtils::kBlocking);
-    MOpenCLUtils::uploadToGPU(translations, translationsBuffer, MOpenCLUtils::kBlocking);
-    MOpenCLUtils::uploadToGPU(quaternions, quaternionsBuffer, MOpenCLUtils::kBlocking);
-    MOpenCLUtils::uploadToGPU(scales, scalesBuffer, MOpenCLUtils::kBlocking);
-    MOpenCLUtils::uploadToGPU(shears, shearsBuffer, MOpenCLUtils::kBlocking);
-    MOpenCLUtils::uploadToGPU(falloffRadiusValues, falloffRadiusValuesBuffer, MOpenCLUtils::kBlocking);
+    MOpenCLUtils::uploadToGPU(softModDataCache.localEnvelopeValues, localEnvelopeBuffer, MOpenCLUtils::kBlocking);
+    MOpenCLUtils::uploadToGPU(softModDataCache.centerPositions, centerPositionsBuffer, MOpenCLUtils::kBlocking);
+    MOpenCLUtils::uploadToGPU(softModDataCache.translations, translationsBuffer, MOpenCLUtils::kBlocking);
+    MOpenCLUtils::uploadToGPU(softModDataCache.quaternions, quaternionsBuffer, MOpenCLUtils::kBlocking);
+    MOpenCLUtils::uploadToGPU(softModDataCache.scales, scalesBuffer, MOpenCLUtils::kBlocking);
+    MOpenCLUtils::uploadToGPU(softModDataCache.shears, shearsBuffer, MOpenCLUtils::kBlocking);
+    MOpenCLUtils::uploadToGPU(softModDataCache.falloffRadiusValues, falloffRadiusValuesBuffer, MOpenCLUtils::kBlocking);
 
     cl_int err = CL_SUCCESS;
     unsigned int count = affectCount();
@@ -704,7 +692,6 @@ void Rpq9MultiSoftModGPUDeformer::terminate(){
     for(std::size_t i=0; i<kernelInfoArray.size(); ++i){
         MOpenCLInfo::releaseOpenCLKernel(kernelInfoArray[i]);
     }
-    kernelInfoArray.clear();
     MPxGPUStandardDeformer::terminate();
 }
 
