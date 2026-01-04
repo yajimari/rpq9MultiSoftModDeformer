@@ -46,7 +46,7 @@ SOFTWARE.
 #include "nodeRegisterData.h"
 
 
-struct softModData {
+struct SoftModData {
     std::vector<float> localEnvelopeValues;
     std::vector<cl_float4> centerPositions;
     std::vector<cl_float4> translations;
@@ -79,7 +79,7 @@ public:
     MStatus accessoryNodeSetup(MDagModifier& cmd) override;
 
     static unsigned int getInputDataData(   MDataBlock& block,
-                                            softModData& data,
+                                            SoftModData& data,
                                             MStatus& status);
 
 public:
@@ -105,7 +105,7 @@ public:
         kEaseInOut = 3,
     };
 private:
-    std::map<unsigned int, softModData> softModDataCache;
+    std::map<unsigned int, SoftModData> softModDataCache;
 };
 
 
@@ -138,7 +138,7 @@ private:
     MOpenCLBuffer scalesBuffer;
     MOpenCLBuffer shearsBuffer;
     MOpenCLBuffer falloffRadiusValuesBuffer;
-    softModData softModDataCache;
+    SoftModData softModDataCache;
 
     std::vector<MAutoCLKernel> kernelInfoArray;
 };

@@ -368,7 +368,7 @@ MStatus Rpq9MultiSoftModDeformer::prepareDeform(MDataBlock& block, unsigned int 
 
 
 unsigned int Rpq9MultiSoftModDeformer::getInputDataData(MDataBlock& block,
-                                                        softModData& data,
+                                                        SoftModData& data,
                                                         MStatus& status) 
 {
     MArrayDataHandle inputDataArrayDataHandle = block.inputArrayValue(Rpq9MultiSoftModDeformer::inputData, &status);
@@ -445,7 +445,7 @@ MStatus Rpq9MultiSoftModDeformer::deform(MDataBlock& block, MItGeometry& iter, c
     float deformerEnvelope = envDataHandle.asFloat();
     if (deformerEnvelope == 0.0) return status;
 
-    softModData& currentIndexData = softModDataCache[multiIndex];
+    SoftModData& currentIndexData = softModDataCache[multiIndex];
     unsigned int inputDataNum = Rpq9MultiSoftModDeformer::getInputDataData(block, currentIndexData, status);
 
     MDataHandle falloffModeDataHandle = block.inputValue(falloffMode, &status);
