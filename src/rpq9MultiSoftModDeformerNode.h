@@ -70,6 +70,9 @@ public:
                           unsigned int multiIndex,
                           unsigned int changeFlags) override;
 
+    MStatus preEvaluation(  const MDGContext& context,
+                            const MEvaluationNode& evaluationNode) override;
+
     MStatus	deform(MDataBlock& block,
                     MItGeometry& iter,
                     const MMatrix& mat,
@@ -82,6 +85,13 @@ public:
                                             SoftModData& data,
                                             MStatus& status);
 
+    static unsigned int getInputDataData(   MDataBlock& block,
+                                            SoftModData& data,
+                                            std::vector<float>& localWeightValues,
+                                            unsigned int vertexNum,
+                                            unsigned int multiIndex,
+                                            MStatus& status);
+
 public:
     static MTypeId id;
 
@@ -90,6 +100,8 @@ public:
     static MObject centerMatrix;
     static MObject modifyMatrix;
     static MObject falloffRadius;
+    static MObject localWeightList;
+    static MObject localWeights;
     static MObject falloffMode;
 
     static MString kernelSource;
@@ -106,6 +118,8 @@ public:
     };
 private:
     std::map<unsigned int, SoftModData> softModDataCache;
+    std::map<unsigned int, std::vector<float>> localWeightValuesCache;
+    bool isLocalWeightDirty = false;
 };
 
 
@@ -137,6 +151,7 @@ private:
     MOpenCLBuffer quaternionsBuffer;
     MOpenCLBuffer scalesBuffer;
     MOpenCLBuffer shearsBuffer;
+    MOpenCLBuffer localWeightBuffer;
     MOpenCLBuffer falloffRadiusValuesBuffer;
     SoftModData softModDataCache;
 

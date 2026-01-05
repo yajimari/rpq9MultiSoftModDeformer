@@ -215,6 +215,7 @@ __kernel void noneSoftMod(
     __global const float4*  scales,
     __global const float4*  shears,
     __global const float*   falloffRadiuses,
+    __global const float*   localWeights,
     __global const float*   vertWeights,
     __global const uint*    affectMap,
     __global float*         deformedPositions,
@@ -246,7 +247,7 @@ __kernel void noneSoftMod(
         float4 localPt = clPt - center;
         localPt.w = 1.0f;
         float4 newPtBase = mat4MulVec4(transMat, localPt);
-        addPt += (newPtBase - localPt) * localEnvelopes[j];
+        addPt += (newPtBase - localPt) * localEnvelopes[j] * localWeights[j * numVertices + vid];
     }
 
     float weight = (vertWeights ? vertWeights[vid] * deformerEnvelope : deformerEnvelope);
@@ -265,6 +266,7 @@ __kernel void linearSoftMod(
     __global const float4*  scales,
     __global const float4*  shears,
     __global const float*   falloffRadiuses,
+    __global const float* localWeights,
     __global const float*   vertWeights,
     __global const uint*    affectMap,
     __global float*         deformedPositions,
@@ -303,7 +305,7 @@ __kernel void linearSoftMod(
         float4 localPt = clPt - center;
         localPt.w = 1.0f;
         float4 newPtBase = mat4MulVec4(transMat, localPt);
-        addPt += (newPtBase - localPt) * localEnvelopes[j];
+        addPt += (newPtBase - localPt) * localEnvelopes[j] * localWeights[j * numVertices + vid];
     }
 
     float weight = (vertWeights ? vertWeights[vid] * deformerEnvelope : deformerEnvelope);
@@ -322,6 +324,7 @@ __kernel void smoothSoftMod(
     __global const float4*  scales,
     __global const float4*  shears,
     __global const float*   falloffRadiuses,
+    __global const float* localWeights,
     __global const float*   vertWeights,
     __global const uint*    affectMap,
     __global float*         deformedPositions,
@@ -360,7 +363,7 @@ __kernel void smoothSoftMod(
         float4 localPt = clPt - center;
         localPt.w = 1.0f;
         float4 newPtBase = mat4MulVec4(transMat, localPt);
-        addPt += (newPtBase - localPt) * localEnvelopes[j];
+        addPt += (newPtBase - localPt) * localEnvelopes[j] * localWeights[j * numVertices + vid];
     }
 
     float weight = (vertWeights ? vertWeights[vid] * deformerEnvelope : deformerEnvelope);
@@ -380,6 +383,7 @@ __kernel void easeInOutSoftMod(
     __global const float4*  scales,
     __global const float4*  shears,
     __global const float*   falloffRadiuses,
+    __global const float* localWeights,
     __global const float*   vertWeights,
     __global const uint*    affectMap,
     __global float*         deformedPositions,
@@ -418,7 +422,7 @@ __kernel void easeInOutSoftMod(
         float4 localPt = clPt - center;
         localPt.w = 1.0f;
         float4 newPtBase = mat4MulVec4(transMat, localPt);
-        addPt += (newPtBase - localPt) * localEnvelopes[j];
+        addPt += (newPtBase - localPt) * localEnvelopes[j] * localWeights[j * numVertices + vid];
     }
 
     float weight = (vertWeights ? vertWeights[vid] * deformerEnvelope : deformerEnvelope);

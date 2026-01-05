@@ -43,6 +43,14 @@ static MStatus evalMakePaintable(){
 }
 
 
+static MStatus evalRemoveMakePaintable(){
+    MString code("makePaintable -sm \"deformer\" -remove \"");
+    code += Rpq9MultiSoftModDeformer::kPluginNodeName;
+    code += "\" \"weights\";";
+    return MGlobal::executeCommand(code, false, false);
+}
+
+
 MStatus initializePlugin( MObject obj ){
     MStatus status;
     MFnPlugin plugin( obj, "Ryoya Yajima", "1.0", "Any");
@@ -63,12 +71,17 @@ MStatus initializePlugin( MObject obj ){
     if(!status)  return status;
 
     status = evalMakePaintable();
+
     return status;
 }
 
 
 MStatus uninitializePlugin( MObject obj){
     MStatus status;
+
+    status = evalRemoveMakePaintable();
+    if(!status)  return status;
+
     MString nodeClassName(Rpq9MultiSoftModDeformer::kPluginNodeName);
     MString registrantId(Rpq9MultiSoftModGPUDeformer::kRegistrantId);
     MGPUDeformerRegistry::deregisterGPUDeformerCreator(
