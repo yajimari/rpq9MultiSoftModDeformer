@@ -388,7 +388,7 @@ MStatus Rpq9MultiSoftModDeformer::prepareDeform(MDataBlock& block, unsigned int 
 MStatus Rpq9MultiSoftModDeformer::preEvaluation(const MDGContext& context,
     const MEvaluationNode& evaluationNode)
 {
-    isLocalWeightDirty |= evaluationNode.dirtyPlugExists(Rpq9MultiSoftModDeformer::localWeightList);
+    isLocalWeightDirty = evaluationNode.dirtyPlugExists(Rpq9MultiSoftModDeformer::localWeightList);
     return MS::kSuccess;
 }
 
