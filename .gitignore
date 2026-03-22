@@ -1,0 +1,8 @@
+# VS Code settings
+.vscode/
+
+# Python cache
+__pycache__/
+
+# Build root dir
+/[Bb]uild*/
