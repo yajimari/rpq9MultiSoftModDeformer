@@ -40,26 +40,15 @@ def installToCurrentVersion():
         raise RuntimeError('Unsupported Maya version.')
 
     currentDir = Path(CURRENT_DIR)
-    platform = cmds.about(os=True)
-    platformDir = ''
-    if platform == 'win64':
-        platformDir = 'windows'
-    elif platform == 'mac64':
-        platformDir = 'osx'
-    elif platform == 'linux64':
-        platformDir = 'linux'
-    else:
-        raise RuntimeError('Unknown platform.')
 
-    pluginDir = currentDir.joinpath('plug-ins', platformDir, version)
-    if not pluginDir.exists():
-        raise FileNotFoundError(f'Not builded Maya{version} plugin.')
+    packageDir = currentDir.joinpath('package')
+    if not packageDir.exists():
+        raise FileNotFoundError(f'Not found dir {packageDir.as_posix()}.')
 
     appDir = Path(os.environ.get("MAYA_APP_DIR"))
-    currentVerPluginPath = appDir.joinpath(cmds.about(majorVersion=True), 'plug-ins')
-    os.makedirs(currentVerPluginPath, exist_ok=True)
+    moduleDirPath = appDir.joinpath('modules')
+    os.makedirs(moduleDirPath, exist_ok=True)
 
-    for file in [path for path in pluginDir.glob("*") if path.is_file()]:
-        shutil.copy2(file, currentVerPluginPath)
+    shutil.copytree(packageDir, moduleDirPath, dirs_exist_ok=True)
 
-    om2.MGlobal.displayInfo(f'===== Finish install to {currentVerPluginPath.as_posix()} =====')
+    om2.MGlobal.displayInfo(f'===== Finish install to {moduleDirPath.as_posix()}. Please restart Maya. =====')

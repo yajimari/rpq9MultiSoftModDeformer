@@ -25,15 +25,22 @@
 
 1. Download the files in this repository from the Releases page.
 2. Extract the downloaded file and drag and drop **quick_install.py** into the Maya you want to install.
-3. Copy the contents of test/test.py into the python tab of the script editor and run it.
-4. If you get a plugin not found error, Please restart Maya or manually load the plugin from the Plugin Manage.
+3. Restart Maya and run the code below. 
+```python
+import rpq9MultiSoftMod.sample
+
+rpq9MultiSoftMod.sample.createAnimetedMultiSoftModScene()
+```
+4. If you get a plugin not found error, Please restart Maya or manually load the plugin from the Plugin Manager.
 
 ## 🧩Plugin Directory Structure
 
 The correct file placement when using the plugin is as follows (Windows).
 ```
- %MAYA_PLUG_IN_PATH%
- └──rpq9MultiSoftModDeformer.mll
+ %MAYA_MODULE_PATH%
+ └──rpq9MultiSoftModDeformer
+    └──scripts
+    └──plug-ins
 ```
 
 ## ⚙️For developers

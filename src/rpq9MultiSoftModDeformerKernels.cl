@@ -33,7 +33,26 @@ inline float remap1to0(float value, float maxValue){
 }
 
 
-inline float smoothQuadratic(float value){
+inline float remap0to1(const float value, const float maxValue)
+{
+    float safeMax = fmax(maxValue, 1.0e-20f);
+    float r = clamp(value / safeMax, 0.0f, 1.0f);
+    return select(r, 0.0f, maxValue == 0.0f);
+}
+
+
+inline float cosineFalloff(float value){
+    const float PI_F = 3.14159265358979323846f;
+    return 0.5f * (1.0f + cos(PI_F * value));
+}
+
+
+inline float cubicFalloff(float value){
+    return 1.0f - 0.5f * value - 1.5f * value * value + value * value * value;
+}
+
+
+inline float smoothStep(float value){
     return value * value * (3.0f - 2.0f * value);
 }
 
@@ -201,6 +220,37 @@ inline float4 slerp(float4 a, float4 b, float t){
 }
 
 
+inline float4 applyWeightedTransform(
+    const float4 clPt,
+    const float4 center,
+    const float4 translation,
+    const float4 quaternion,
+    const float4 scale,
+    const float4 shear,
+    const float localEnvelope,
+    const float localWeight,
+    const float falloffWeight,
+    const float4 zeroVec,
+    const float4 oneVec)
+{
+    float4 weightedTranslate  = mix(zeroVec, translation, falloffWeight);
+    float4 weightedScale      = mix(oneVec,  scale,      falloffWeight);
+    float4 weightedShear      = mix(zeroVec, shear,      falloffWeight);
+    float4 weightedQuaternion = slerp(zeroVec, quaternion, falloffWeight);
+
+    Mat4 transMat = composeMatrix(
+        weightedTranslate,
+        weightedQuaternion,
+        weightedScale,
+        weightedShear);
+
+    float4 localPt = clPt - center;
+    localPt.w = 1.0f;
+
+    float4 newPtBase = mat4MulVec4(transMat, localPt);
+    return (newPtBase - localPt) * localEnvelope * localWeight;
+}
+
 
 /*
     rpq9MultiSoftModDeformer kernels
@@ -296,16 +346,17 @@ __kernel void linearSoftMod(
 
         float falloffWeight = remap1to0(distanceFromCenter, radius);
 
-        float4 weightedTranslate  = mix(zeroVec, translations[j], falloffWeight);
-        float4 weightedScale      = mix(oneVec,  scales[j], falloffWeight);
-        float4 weightedShear      = mix(zeroVec, shears[j], falloffWeight);
-        float4 weightedQuaternion = slerp(zeroVec, quaternions[j], falloffWeight);
-
-        Mat4 transMat = composeMatrix(weightedTranslate, weightedQuaternion, weightedScale, weightedShear);
-        float4 localPt = clPt - center;
-        localPt.w = 1.0f;
-        float4 newPtBase = mat4MulVec4(transMat, localPt);
-        addPt += (newPtBase - localPt) * localEnvelopes[j] * localWeights[j * numVertices + vid];
+        addPt += applyWeightedTransform(clPt,
+                                        center,
+                                        translations[j],
+                                        quaternions[j],
+                                        scales[j],
+                                        shears[j],
+                                        localEnvelopes[j],
+                                        localWeights[j * numVertices + vid],
+                                        falloffWeight,
+                                        zeroVec,
+                                        oneVec);
     }
 
     float weight = (vertWeights ? vertWeights[vid] * deformerEnvelope : deformerEnvelope);
@@ -352,18 +403,19 @@ __kernel void smoothSoftMod(
 
         if (distanceFromCenter > radius) continue;
 
-        float falloffWeight = smoothQuadratic(remap1to0(distanceFromCenter, radius));
+        float falloffWeight = cosineFalloff(remap0to1(distanceFromCenter, radius));
 
-        float4 weightedTranslate  = mix(zeroVec, translations[j], falloffWeight);
-        float4 weightedScale      = mix(oneVec,  scales[j], falloffWeight);
-        float4 weightedShear      = mix(zeroVec, shears[j], falloffWeight);
-        float4 weightedQuaternion = slerp(zeroVec, quaternions[j], falloffWeight);
-
-        Mat4 transMat = composeMatrix(weightedTranslate, weightedQuaternion, weightedScale, weightedShear);
-        float4 localPt = clPt - center;
-        localPt.w = 1.0f;
-        float4 newPtBase = mat4MulVec4(transMat, localPt);
-        addPt += (newPtBase - localPt) * localEnvelopes[j] * localWeights[j * numVertices + vid];
+        addPt += applyWeightedTransform(clPt,
+                                        center,
+                                        translations[j],
+                                        quaternions[j],
+                                        scales[j],
+                                        shears[j],
+                                        localEnvelopes[j],
+                                        localWeights[j * numVertices + vid],
+                                        falloffWeight,
+                                        zeroVec,
+                                        oneVec);
     }
 
     float weight = (vertWeights ? vertWeights[vid] * deformerEnvelope : deformerEnvelope);
@@ -372,6 +424,123 @@ __kernel void smoothSoftMod(
     vstore3(outPt, vid, deformedPositions);
 }
 
+
+__kernel void splineSoftMod(
+    __global const float*   initPositions,
+    __global const float*   localEnvelopes,
+    __global const float4*  deformCenterPositions,
+    __global const float4*  translations,
+    __global const float4*  quaternions,
+    __global const float4*  scales,
+    __global const float4*  shears,
+    __global const float*   falloffRadiuses,
+    __global const float* localWeights,
+    __global const float*   vertWeights,
+    __global const uint*    affectMap,
+    __global float*         deformedPositions,
+    const float             deformerEnvelope,
+    const uint              numVertices,
+    const uint              numControlMatrices)
+{
+    const uint gid = get_global_id(0);
+    if (gid >= numVertices) return;
+
+    const uint vid = (affectMap ? affectMap[gid] : gid);
+
+    float3 pt = vload3(vid, initPositions);
+    float4 clPt = (float4)(pt.x, pt.y, pt.z, 1.0f);
+
+    float4 addPt = (float4)(0.0f, 0.0f, 0.0f, 0.0f);
+
+    const float4 zeroVec = (float4)(0.0f, 0.0f, 0.0f, 1.0f);
+    const float4 oneVec  = (float4)(1.0f, 1.0f, 1.0f, 1.0f);
+
+    for (uint j = 0; j < numControlMatrices; ++j) {
+        float4 center = deformCenterPositions[j];
+        float distanceFromCenter = fast_distance(clPt, center);
+        float radius = falloffRadiuses[j];
+
+        if (distanceFromCenter > radius) continue;
+
+        float falloffWeight = cubicFalloff(remap0to1(distanceFromCenter, radius));
+
+        addPt += applyWeightedTransform(clPt,
+                                        center,
+                                        translations[j],
+                                        quaternions[j],
+                                        scales[j],
+                                        shears[j],
+                                        localEnvelopes[j],
+                                        localWeights[j * numVertices + vid],
+                                        falloffWeight,
+                                        zeroVec,
+                                        oneVec);
+    }
+
+    float weight = (vertWeights ? vertWeights[vid] * deformerEnvelope : deformerEnvelope);
+    float3 outPt = pt + weight * (float3)(addPt.x, addPt.y, addPt.z);
+
+    vstore3(outPt, vid, deformedPositions);
+}
+
+
+__kernel void smoothStepSoftMod(
+    __global const float*   initPositions,
+    __global const float*   localEnvelopes,
+    __global const float4*  deformCenterPositions,
+    __global const float4*  translations,
+    __global const float4*  quaternions,
+    __global const float4*  scales,
+    __global const float4*  shears,
+    __global const float*   falloffRadiuses,
+    __global const float* localWeights,
+    __global const float*   vertWeights,
+    __global const uint*    affectMap,
+    __global float*         deformedPositions,
+    const float             deformerEnvelope,
+    const uint              numVertices,
+    const uint              numControlMatrices)
+{
+    const uint gid = get_global_id(0);
+    if (gid >= numVertices) return;
+
+    const uint vid = (affectMap ? affectMap[gid] : gid);
+
+    float3 pt = vload3(vid, initPositions);
+    float4 clPt = (float4)(pt.x, pt.y, pt.z, 1.0f);
+
+    float4 addPt = (float4)(0.0f, 0.0f, 0.0f, 0.0f);
+
+    const float4 zeroVec = (float4)(0.0f, 0.0f, 0.0f, 1.0f);
+    const float4 oneVec  = (float4)(1.0f, 1.0f, 1.0f, 1.0f);
+
+    for (uint j = 0; j < numControlMatrices; ++j) {
+        float4 center = deformCenterPositions[j];
+        float distanceFromCenter = fast_distance(clPt, center);
+        float radius = falloffRadiuses[j];
+
+        if (distanceFromCenter > radius) continue;
+
+        float falloffWeight = smoothStep(remap1to0(distanceFromCenter, radius));
+
+        addPt += applyWeightedTransform(clPt,
+                                        center,
+                                        translations[j],
+                                        quaternions[j],
+                                        scales[j],
+                                        shears[j],
+                                        localEnvelopes[j],
+                                        localWeights[j * numVertices + vid],
+                                        falloffWeight,
+                                        zeroVec,
+                                        oneVec);
+    }
+
+    float weight = (vertWeights ? vertWeights[vid] * deformerEnvelope : deformerEnvelope);
+    float3 outPt = pt + weight * (float3)(addPt.x, addPt.y, addPt.z);
+
+    vstore3(outPt, vid, deformedPositions);
+}
 
 
 __kernel void easeInOutSoftMod(
@@ -413,16 +582,17 @@ __kernel void easeInOutSoftMod(
 
         float falloffWeight = easeInOutQuadratic(remap1to0(distanceFromCenter, radius));
 
-        float4 weightedTranslate  = mix(zeroVec, translations[j], falloffWeight);
-        float4 weightedScale      = mix(oneVec,  scales[j], falloffWeight);
-        float4 weightedShear      = mix(zeroVec, shears[j], falloffWeight);
-        float4 weightedQuaternion = slerp(zeroVec, quaternions[j], falloffWeight);
-
-        Mat4 transMat = composeMatrix(weightedTranslate, weightedQuaternion, weightedScale, weightedShear);
-        float4 localPt = clPt - center;
-        localPt.w = 1.0f;
-        float4 newPtBase = mat4MulVec4(transMat, localPt);
-        addPt += (newPtBase - localPt) * localEnvelopes[j] * localWeights[j * numVertices + vid];
+        addPt += applyWeightedTransform(clPt,
+                                        center,
+                                        translations[j],
+                                        quaternions[j],
+                                        scales[j],
+                                        shears[j],
+                                        localEnvelopes[j],
+                                        localWeights[j * numVertices + vid],
+                                        falloffWeight,
+                                        zeroVec,
+                                        oneVec);
     }
 
     float weight = (vertWeights ? vertWeights[vid] * deformerEnvelope : deformerEnvelope);

@@ -53,13 +53,32 @@ namespace {
         return std::max(T{ 0 }, T{ 1 } - value / maxValue);
     }
 
+    template <typename T>
+    T remap0to1(T value, T maxValue) noexcept {
+        static_assert(std::is_floating_point_v<T>, "remap0to1 requires an floating point type");
+
+        if (maxValue == T{ 0 }) return T{ 0 };
+        return std::clamp(value / maxValue, 0.0f, 1.0f);
+    }
 
     template <typename T>
-    T smoothQuadratic(T value) noexcept {
+    T cosineFalloff(T value) noexcept {
+        static_assert(std::is_floating_point_v<T>, "cosineFalloff requires a floating point type");
+        constexpr T kPi = T{3.14159265358979323846};
+        return T{ 0.5 } * (T{ 1.0 } + std::cos(kPi * value));
+    }
+
+    template <typename T>
+    T cubicFalloff(T value) noexcept {
+        static_assert(std::is_floating_point_v<T>, "cubicFalloff requires a floating point type");
+        return T{1.0} - T{0.5} * value - T{1.5} * value * value + value * value * value;
+    }
+
+    template <typename T>
+    T smoothStep(T value) noexcept {
         static_assert(std::is_floating_point_v<T>, "smoothQuadratic requires a floating point type");
         return value * value * (T{ 3 } - T{ 2 } *value);
     }
-
 
     template <typename T>
     T easeInOutQuadratic(T value) noexcept {
@@ -72,6 +91,7 @@ namespace {
             return T{ 1 } - (t * t) / T{ 2 };
         }
     }
+
     //---
 
     //column-major matrix
@@ -297,7 +317,7 @@ MObject Rpq9MultiSoftModDeformer::localWeights;
 MObject Rpq9MultiSoftModDeformer::falloffMode;
 MString Rpq9MultiSoftModDeformer::kernelSource;
 MString Rpq9MultiSoftModDeformer::kernelProgramName;
-std::array<MString, 4> Rpq9MultiSoftModDeformer::kernelNames = {"noneSoftMod", "linearSoftMod", "smoothSoftMod", "easeInOutSoftMod"};
+std::array<MString, 6> Rpq9MultiSoftModDeformer::kernelNames = {"noneSoftMod", "linearSoftMod", "smoothSoftMod", "splineSoftMod", "smoothStepSoftMod", "easeInOutSoftMod"};
 const char* Rpq9MultiSoftModDeformer::kPluginNodeName = RPQ9_MULTI_SOFT_MOD_DEFORMER_NODE_NAME;
 
 Rpq9MultiSoftModDeformer::Rpq9MultiSoftModDeformer() {}
@@ -368,6 +388,8 @@ MStatus Rpq9MultiSoftModDeformer::initialize(){
     eAttr.addField("None", Rpq9MultiSoftModDeformer::kNone);
     eAttr.addField("Linear", Rpq9MultiSoftModDeformer::kLinear);
     eAttr.addField("Smooth", Rpq9MultiSoftModDeformer::kSmooth);
+    eAttr.addField("Spline", Rpq9MultiSoftModDeformer::kSpline);
+    eAttr.addField("SmoothStep", Rpq9MultiSoftModDeformer::kSmoothStep);
     eAttr.addField("EaseInOut", Rpq9MultiSoftModDeformer::kEaseInOut);
 
     addAttribute(inputData);
@@ -602,7 +624,13 @@ MStatus Rpq9MultiSoftModDeformer::deform(MDataBlock& block, MItGeometry& iter, c
             falloffWeightFunc = [](float distanceFromCenter, float falloffRadius) {return remap1to0(distanceFromCenter, falloffRadius);};
             break;
         case Rpq9MultiSoftModDeformer::kSmooth:
-            falloffWeightFunc = [](float distanceFromCenter, float falloffRadius) {return smoothQuadratic(remap1to0(distanceFromCenter, falloffRadius));};
+            falloffWeightFunc = [](float distanceFromCenter, float falloffRadius) {return cosineFalloff(remap0to1(distanceFromCenter, falloffRadius));};
+            break;
+        case Rpq9MultiSoftModDeformer::kSpline:
+            falloffWeightFunc = [](float distanceFromCenter, float falloffRadius) {return cubicFalloff(remap0to1(distanceFromCenter, falloffRadius));};
+            break;
+        case Rpq9MultiSoftModDeformer::kSmoothStep:
+            falloffWeightFunc = [](float distanceFromCenter, float falloffRadius) {return smoothStep(remap1to0(distanceFromCenter, falloffRadius));};
             break;
         case Rpq9MultiSoftModDeformer::kEaseInOut:
             falloffWeightFunc = [](float distanceFromCenter, float falloffRadius) {return easeInOutQuadratic(remap1to0(distanceFromCenter, falloffRadius));};

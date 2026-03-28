@@ -78,3 +78,46 @@ target_include_directories(${PROJECT_NAME} PRIVATE "${GENERATED_DIR}")
 target_sources(${PROJECT_NAME} PRIVATE 
                 "${MEL_EMBEDDED_HDR}"
                 "${KERNEL_EMBEDDED_HDR}")
+
+
+# install ---
+set(PACKAGE_ROOT "${CMAKE_CURRENT_LIST_DIR}/package/${PROJECT_NAME}")
+
+if(WIN32)
+    set(PLUGIN_PLATFORM "windows")
+elseif(UNIX AND NOT APPLE)
+    set(PLUGIN_PLATFORM "linux")
+else()
+    message(FATAL_ERROR "Unsupported platform")
+endif()
+
+if(NOT DEFINED MAYA_VER OR MAYA_VER STREQUAL "")
+    message(WARNING "MAYA_VER is not set. Install rules will be skipped.")
+    install(CODE [[
+        message(WARNING "MAYA_VER is not set. Skipping package install.")
+    ]])
+else()
+    set(PLUGIN_INSTALL_DIR
+        "${PACKAGE_ROOT}/plug-ins/${PLUGIN_PLATFORM}/${MAYA_VER}"
+    )
+
+    # プラグイン本体
+    install(TARGETS ${PROJECT_NAME}
+        LIBRARY DESTINATION "${PLUGIN_INSTALL_DIR}"
+        COMPONENT PluginBinary
+        RUNTIME DESTINATION "${PLUGIN_INSTALL_DIR}"
+        COMPONENT PluginBinary
+    )
+
+    # 共通 scripts
+    install(DIRECTORY scripts/
+        DESTINATION "${PACKAGE_ROOT}/scripts"
+        COMPONENT SharedFiles
+    )
+
+    # mod
+    install(FILES ${PROJECT_NAME}.mod
+        DESTINATION "${CMAKE_CURRENT_LIST_DIR}/package"
+        COMPONENT SharedFiles
+    )
+endif()

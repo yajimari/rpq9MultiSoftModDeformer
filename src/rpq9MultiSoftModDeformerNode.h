@@ -106,7 +106,7 @@ public:
 
     static MString kernelSource;
     static MString kernelProgramName;
-    static std::array<MString, 4> kernelNames;
+    static std::array<MString, 6> kernelNames;
 
     static const char* kPluginNodeName;
 
@@ -114,7 +114,9 @@ public:
         kNone = 0,
         kLinear = 1,
         kSmooth = 2,
-        kEaseInOut = 3,
+        kSpline = 3,
+        kSmoothStep = 4,
+        kEaseInOut = 5,
     };
 private:
     std::map<unsigned int, SoftModData> softModDataCache;

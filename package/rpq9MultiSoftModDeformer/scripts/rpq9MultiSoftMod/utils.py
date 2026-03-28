@@ -19,18 +19,23 @@ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
 AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+SOFTWARE.  
 '''
-import os
-import json
+import maya.cmds as cmds
+import maya.api.OpenMaya as om2
+
+from .constants import PLUGIN_NODE_NAME
 
 
-def writeJson(filePath:str, data:dict) -> None:
-    os.makedirs(os.path.dirname(filePath), exist_ok=True)
-    with open(filePath, 'wt', encoding='utf-8') as file:
-        json.dump(data, file, indent=4, ensure_ascii=False)
+def getDeformerGeometries(deformer:str) -> list[str]:
+    shapes = cmds.deformer(deformer, q=True, g=True)
+    return [cmds.listRelatives(shape, p=True)[0] for shape in shapes]
 
-def readJson(filePath:str) -> dict:
-    with open(filePath, 'r', encoding='utf-8') as file:
-        data = json.load(file)
-    return data
+
+def isMultiSoftModNode(mobj:om2.MObject) -> bool:
+    mfn = om2.MFnDependencyNode(mobj)
+    return mfn.typeName == PLUGIN_NODE_NAME
+
+
+def getMultiSoftModNodes(node:str) -> list[str]:
+    return cmds.ls(cmds.listHistory(node), type='rpq9MultiSoftMod')

@@ -19,18 +19,8 @@ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
 AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+SOFTWARE.  
 '''
-import os
-import json
 
-
-def writeJson(filePath:str, data:dict) -> None:
-    os.makedirs(os.path.dirname(filePath), exist_ok=True)
-    with open(filePath, 'wt', encoding='utf-8') as file:
-        json.dump(data, file, indent=4, ensure_ascii=False)
-
-def readJson(filePath:str) -> dict:
-    with open(filePath, 'r', encoding='utf-8') as file:
-        data = json.load(file)
-    return data
+PLUGIN_NAME = 'rpq9MultiSoftModDeformer'
+PLUGIN_NODE_NAME = 'rpq9MultiSoftMod'
