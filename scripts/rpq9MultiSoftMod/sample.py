@@ -27,31 +27,20 @@ import maya.cmds as cmds
 
 from .constants import PLUGIN_NAME, PLUGIN_NODE_NAME
 from .controller import createController
+from .utils import createRpq9MultiSoftMod
 
 
 def createTestMultiSoftMod(num:int) -> list[list[str]]:
-    if not cmds.pluginInfo(PLUGIN_NAME, q=True, loaded=True):
-        cmds.loadPlugin(PLUGIN_NAME, qt=True)
     plane = cmds.polyPlane()
-    deformer = cmds.deformer(plane, type=PLUGIN_NODE_NAME)[0]
-    controllers = []
-    for i in range(num):
-        centerController, modifyController = createController()
-        cmds.connectAttr(f'{centerController}.envelope', f'{deformer}.inputData[{i}].localEnvelope', f=True)
-        cmds.connectAttr(f'{centerController}.wm[0]', f'{deformer}.inputData[{i}].centerMatrix', f=True)
-        cmds.connectAttr(f'{modifyController}.wm[0]', f'{deformer}.inputData[{i}].modifyMatrix', f=True)
-        cmds.connectAttr(f'{centerController}.falloffRadius', f'{deformer}.inputData[{i}].falloffRadius', f=True)
-        controllers.append([centerController, modifyController])
-    return controllers
+    defromer, controller = createRpq9MultiSoftMod(plane[0], num)
+    return controller
 
 
 def createTestMultiSoftModSeries(num:int) -> list[list[str]]:
-    if not cmds.pluginInfo(PLUGIN_NAME, q=True, loaded=True):
-        cmds.loadPlugin(PLUGIN_NAME, qt=True)
     plane = cmds.polyPlane()
     controllers = []
     for i in range(num):
-        deformer = cmds.deformer(plane, type='rpq9MultiSoftMod')[0]
+        deformer = cmds.deformer(plane[0], type='rpq9MultiSoftMod')[0]
         centerController, modifyController = createController()
         cmds.connectAttr(f'{centerController}.envelope', f'{deformer}.inputData[0].localEnvelope', f=True)
         cmds.connectAttr(f'{centerController}.wm[0]', f'{deformer}.inputData[0].centerMatrix', f=True)
@@ -65,7 +54,7 @@ def createTestSoftMod(num:int) -> list[list[str]]:
     plane = cmds.polyPlane()
     controllers = []
     for i in range(num):
-        deformer, handle = cmds.softMod(plane)
+        deformer, handle = cmds.softMod(plane[0])
         centerController, modifyController = createController()
         cmds.parent(handle, centerController)
         cmds.connectAttr(f'{centerController}.translate', f'{deformer}.falloffCenter', f=True)

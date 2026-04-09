@@ -21,20 +21,17 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.  
 '''
-import copy
-
 import maya.cmds as cmds
 import maya.api.OpenMaya as om2
 
 from .constants import PLUGIN_NAME, PLUGIN_NODE_NAME
-from .utils import isMultiSoftModNode
+from .utils import isMultiSoftModNode, getMPlug
 from .jsonIO import readJson, writeJson
-
+from .model import Rpq9MultiSoftModData, DeformerWeights, DeformerWeightList
 
 
 STASH_ATTR_LIST_NAME = 'rpq9MultiSoftMod_stashWeightList'
 STASH_ATTR_WEIGHT_NAME = 'rpq9MultiSoftMod_stashWeights'
-
 
 
 def isVertexWeightAttriubte(plug:om2.MPlug) -> bool:
@@ -52,12 +49,8 @@ def copyVertexWeightAttribute(source:str, target:str) -> None:
     if not cmds.objExists(source) or not cmds.objExists(target):
         raise RuntimeError('Not exist argument attribute.')
 
-    selList= om2.MSelectionList()
-    selList.add(source)
-    selList.add(target)
-
-    sourcePlug = selList.getPlug(0)
-    targetPlug = selList.getPlug(1)
+    sourcePlug = getMPlug(source)
+    targetPlug = getMPlug(target)
 
     if isVertexWeightAttriubte(sourcePlug):
         raise TypeError(f'"{source}" is not vertex weight attriubte.')
@@ -146,30 +139,30 @@ def copyMultiSoftModDeformerWeights(source:str, target:str) -> None:
         cmds.copyDeformerWeights(sourceDeformer=source, sourceShape=source_geo, destinationDeformer=target, destinationShape=target_geo, noMirror=True, surfaceAssociation='closestComponent')
 
 
-def getVertexWeightAttributeData(attr:str) -> dict[str, dict[str, float]] | None:
-    selList= om2.MSelectionList()
-    selList.add(attr)
-    plug = selList.getPlug(0)
+def getVertexWeightAttributeData(attr:str) -> DeformerWeightList:
+    plug = getMPlug(attr)
 
     if isVertexWeightAttriubte(plug):
         raise TypeError(f'"{attr}" is not vertex weight attriubte.')
+
+    res = DeformerWeightList()
     res = {}
     geoMultiIndices = plug.getExistingArrayAttributeIndices()
-    for geoindex in geoMultiIndices:
-        child = plug.elementByLogicalIndex(geoindex).child(0)
-        res[geoindex] = {}
+    for geoIndex in geoMultiIndices:
+        child = plug.elementByLogicalIndex(geoIndex).child(0)
+        currentWeights = DeformerWeights()
         vertexIndices = child.getExistingArrayAttributeIndices()
         for vertexIndex in vertexIndices:
             elementPlug = child.elementByLogicalIndex(vertexIndex)
-            res[geoindex][vertexIndex] = elementPlug.asDouble()
+            currentWeights[vertexIndex] = elementPlug.asDouble()
+
+        res[geoIndex] = currentWeights
 
     return res
 
 
-def setVertexWeightAttributeData(attr:str, data:dict[str, dict[str, float]]) -> None:
-    selList= om2.MSelectionList()
-    selList.add(attr)
-    plug = selList.getPlug(0)
+def setVertexWeightAttributeData(attr:str, data:DeformerWeightList) -> None:
+    plug = getMPlug(attr)
 
     if isVertexWeightAttriubte(plug):
         raise TypeError(f'"{attr}" is not vertex weight attriubte.')
@@ -182,76 +175,11 @@ def setVertexWeightAttributeData(attr:str, data:dict[str, dict[str, float]]) -> 
             cmds.setAttr(vertexPlug.name(), value)
 
 
-def getVertexWeightData(node:str) -> dict | None:
-    if cmds.nodeType(node) != PLUGIN_NODE_NAME:
-        return None
-
-    res = { 'name': node,
-            'geometry': cmds.deformer(node, q=True, g=True),
-            'geometryIndices': cmds.deformer(node, q=True, geometryIndices=True),
-            'centerMatrices': {}}
-
-    res['weightList'] = getVertexWeightAttributeData(f'{node}.weightList')
-
-    res['localWeightList'] = {}
-    inputDataMultiIndices = cmds.getAttr(f'{node}.inputData', mi=True)
-    for inputDataMultiIndex in inputDataMultiIndices:
-        res['localWeightList'][inputDataMultiIndex] = getVertexWeightAttributeData(f'{node}.inputData[{inputDataMultiIndex}].localWeightList')
-        res['centerMatrices'][inputDataMultiIndex] = cmds.getAttr(f'{node}.inputData[{inputDataMultiIndex}].centerMatrix')
-
-    return res
-
-
-def setVertexWeightData(node:str, data:str) -> None:
+def setVertexWeightData(node:str, data:Rpq9MultiSoftModData) -> None:
     if cmds.nodeType(node) != PLUGIN_NODE_NAME:
         return
 
-    setVertexWeightAttributeData(f'{node}.weightList', data['weightList'])
+    setVertexWeightAttributeData(f'{node}.weightList', data.weightList)
 
-    for inputDataindex, currentIndexData in data['localWeightList'].items():
+    for inputDataindex, currentIndexData in data.localWeightList.items():
         setVertexWeightAttributeData(f'{node}.inputData[{inputDataindex}].localWeightList', currentIndexData)
-
-
-def saveVertexWeightData(node:str, filePath:str) -> None:
-    data = getVertexWeightData(node)
-    writeJson(filePath, data)
-    om2.MGlobal.displayInfo(f'Saved "{node}" vertex weights: {filePath}')
-
-
-def loadVertexWeightData(filePath:str) -> None:
-    data = readJson(filePath)
-    deformerName = data['name']
-    if not cmds.objExists(deformerName):
-        raise RuntimeError(f'"{deformerName}" is not found.')
-    setVertexWeightData(deformerName, data)
-
-
-def loadVertexWeightDataToNode(node:str, filePath:str):
-    data = readJson(filePath)
-    if not cmds.objExists(node):
-        raise RuntimeError(f'"{node}" is not found.')
-    setVertexWeightData(node, data)
-
-
-def applyDeformerData(filePsth:str):
-    data = readJson(filePath)
-    deformerName = data['name']
-    geos = data['geometry']
-    deformer = cmds.deformer(geos, type=PLUGIN_NODE_NAME, n=deformerName)
-
-    setVertexWeightData(deformer, data)
-    for index, value in data['centerMatrices'].items():
-        cmds.setAttr(f'{deformer}.inputData[{index}].centerMatrix', value, type='matrix')
-        cmds.setAttr(f'{deformer}.inputData[{index}].modifyMatrix', value, type='matrix')
-
-
-def removeGeometryFromDefromerData(data:dict, removeGeo:str) -> int:
-    geos = data['geometry']
-    geoIndices = data['geometryIndices']
-    geoIndex = geoIndices[geos.index(removeGeo)]
-
-    del data['weightList'][str(geoIndex)]
-    for inputDataindex, currentIndexData in data['localWeightList'].items():
-        del currentIndexData[str(geoIndex)]
-
-    return geoIndex

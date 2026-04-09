@@ -23,8 +23,6 @@ SOFTWARE.
 '''
 import math
 import maya.cmds as cmds
-import maya.api.OpenMaya as om2
-
 
 def createSphereCurve() -> str:
     numSides = 8

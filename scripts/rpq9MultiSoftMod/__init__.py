@@ -21,9 +21,28 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.  
 '''
-import maya.cmds as cmds
-
 from .constants import PLUGIN_NAME, PLUGIN_NODE_NAME
-from . import deformerWeight, deformerWeightUI, utils
+from .model import Matrix4x4, DeformerWeights, DeformerWeightList, Rpq9MultiSoftModData
 
-cmds.loadPlugin(PLUGIN_NAME, qt=True)
+try:
+    import maya.cmds as cmds
+    from . import core, deformerWeight, deformerWeightUI, utils
+
+    utils.loadPlugin()
+
+    if not cmds.runTimeCommand('CreateRpq9MultiSoftMod', exists=True):
+        cmds.runTimeCommand(
+            'CreateRpq9MultiSoftMod',
+            annotation='Execute CreateRpq9MultiSoftMod',
+            command='import rpq9MultiSoftMod.command;cmd = rpq9MultiSoftMod.command.Command();cmd.executeWithPreferences()',
+            default=True)
+
+    if not cmds.runTimeCommand('CreateRpq9MultiSoftModOptions', exists=True):
+        cmds.runTimeCommand(
+            'CreateRpq9MultiSoftModOptions',
+            annotation='Show CreateRpq9MultiSoftModOptions',
+            command='import rpq9MultiSoftMod.command;cmd = rpq9MultiSoftMod.command.Command();cmd.createDialog(optionVarOverrideDict=None, saveOptionVars=True)',
+            default=True)
+
+except Exception:
+    pass

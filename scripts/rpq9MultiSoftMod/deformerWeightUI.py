@@ -30,9 +30,9 @@ from .deformerWeight import (
     stashWeightAttr,
     unstashWeightAttr,
     getMultiSoftModInputDataIndex,
-    saveVertexWeightData,
-    loadVertexWeightDataToNode
 )
+
+from .core import saveRpq9MultiSoftModData, loadVertexWeightDataToNode
 
 
 UI_NAME = 'rpq9MultiSoftMod_DeformerWeightUI'
@@ -88,7 +88,7 @@ def exportVertexWeightDataCB():
     filePath = filePathFromDialog(dialogMode=0)
     if filePath is None:
         return
-    saveVertexWeightData(currentDeformer, filePath)
+    saveRpq9MultiSoftModData(currentDeformer, filePath)
 
 
 def importVertexWeightDataCB():

@@ -24,18 +24,49 @@ SOFTWARE.
 import maya.cmds as cmds
 import maya.api.OpenMaya as om2
 
-from .constants import PLUGIN_NODE_NAME
+from .constants import PLUGIN_NAME, PLUGIN_NODE_NAME
+from .controller import createController
 
+def loadPlugin() -> None:
+    if not cmds.pluginInfo(PLUGIN_NAME, q=True, loaded=True):
+        cmds.loadPlugin(PLUGIN_NAME, qt=True)
 
 def getDeformerGeometries(deformer:str) -> list[str]:
     shapes = cmds.deformer(deformer, q=True, g=True)
     return [cmds.listRelatives(shape, p=True)[0] for shape in shapes]
 
 
-def isMultiSoftModNode(mobj:om2.MObject) -> bool:
+def isMultiSoftModNode(node:str) -> bool:
+    return cmds.nodeType(node) == PLUGIN_NODE_NAME
+
+
+def isMultiSoftModNodeMObj(mobj:om2.MObject) -> bool:
     mfn = om2.MFnDependencyNode(mobj)
     return mfn.typeName == PLUGIN_NODE_NAME
 
 
 def getMultiSoftModNodes(node:str) -> list[str]:
-    return cmds.ls(cmds.listHistory(node), type='rpq9MultiSoftMod')
+    return cmds.ls(cmds.listHistory(node), type=PLUGIN_NODE_NAME)
+
+
+def getMPlug(attr:str) -> om2.MPlug:
+    selList= om2.MSelectionList()
+    selList.add(attr)
+    return selList.getPlug(0)
+
+
+def createRpq9MultiSoftMod(geos:list[str]|str, controllerNum:int=0, **kwargs):
+    kwargs.pop('type', None)
+    kwargs.pop('typ', None)
+    kwargs['type'] = PLUGIN_NODE_NAME
+    deformer = cmds.deformer(geos, **kwargs)[0]
+    controllers = []
+    for i in range(controllerNum):
+        centerController, modifyController = createController()
+        cmds.connectAttr(f'{centerController}.envelope', f'{deformer}.inputData[{i}].localEnvelope', f=True)
+        cmds.connectAttr(f'{centerController}.wm[0]', f'{deformer}.inputData[{i}].centerMatrix', f=True)
+        cmds.connectAttr(f'{modifyController}.wm[0]', f'{deformer}.inputData[{i}].modifyMatrix', f=True)
+        cmds.connectAttr(f'{centerController}.falloffRadius', f'{deformer}.inputData[{i}].falloffRadius', f=True)
+        controllers.append([centerController, modifyController])
+    res = [deformer] + controllers
+    return res
