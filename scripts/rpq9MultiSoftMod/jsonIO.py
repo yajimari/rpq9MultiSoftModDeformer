@@ -26,6 +26,8 @@ import json
 
 
 def writeJson(filePath:str, data:dict) -> None:
+    if not os.path.isabs(filePath):
+        raise RuntimeError('filePath is not absolute path.')
     os.makedirs(os.path.dirname(filePath), exist_ok=True)
     with open(filePath, 'wt', encoding='utf-8') as file:
         json.dump(data, file, indent=4, ensure_ascii=False)

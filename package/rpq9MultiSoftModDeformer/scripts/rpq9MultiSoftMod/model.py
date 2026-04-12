@@ -99,7 +99,7 @@ def isValueOfType(value: Any, expectedType: Any) -> bool:
 
 def isDataclassAllFieldsValid(obj: Any, verbose:bool=False) -> bool:
     if not dataclasses.is_dataclass(obj) or isinstance(obj, type):
-        raise TypeError(f'obj is not dataclass instance.')
+        raise TypeError('obj is not dataclass instance.')
 
     hints = get_type_hints(type(obj))
     res = True
@@ -211,8 +211,8 @@ class DeformerWeightList(dict):
         if type(key) is not str:
             raise TypeError('The key type must be str.') 
 
-        if type(value) is not DeformerWeight:
-            raise TypeError('The value type must be DeformerWeight.')
+        if type(value) is not DeformerWeights:
+            raise TypeError('The value type must be DeformerWeights.')
 
         super().__setitem__(key, value)
 
@@ -237,6 +237,7 @@ class Rpq9MultiSoftModData:
         return dataclasses.asdict(self)
 
 
+    @classmethod
     def fromJsonDict(cls, data:dict) -> 'Rpq9MultiSoftModData':
         kwargs = {
             'name': data['name'],
@@ -248,7 +249,7 @@ class Rpq9MultiSoftModData:
             'centerMatrices': {key: Matrix4x4(**value) for key, value in data['centerMatrices'].items()},
             'modifyMatrices': {key: Matrix4x4(**value) for key, value in data['modifyMatrices'].items()},
             'falloffRadii': data['falloffRadii'],
-            'weightList': DeformerWeightList(**data['weightList']),
+            'weightList': DeformerWeightList({index: DeformerWeights(**value) for index, value in data['weightList'].items()}),
             'localWeightList': {key: DeformerWeightList({index: DeformerWeights(**value) for index, value in weightListValue.items()}) for key, weightListValue in data['localWeightList'].items()},
         }
 
@@ -272,7 +273,7 @@ class Rpq9MultiSoftModData:
             else:
                 return False
 
-        if not(len(self.localEnvelopes) == len(self.centerMatrices) == len(self.modifyMatrices) == len(self.falloffRadii), len(self.localWeightList)):
+        if not(len(self.localEnvelopes) == len(self.centerMatrices) == len(self.modifyMatrices) == len(self.falloffRadii) == len(self.localWeightList)):
             if verbose:
                 logger.info('The number of elements in the input data is different.')
                 res = False
@@ -286,20 +287,20 @@ class Rpq9MultiSoftModData:
             else:
                 return False
 
-        geometryIndicesStr = {str(index) for index in self.geometryIndices}
+        geometryStrIndices = {str(index) for index in self.geometryIndices}
         for index in self.weightList.keys():
-            if index not in geometryIndicesStr:
+            if index not in geometryStrIndices:
                 if verbose:
                     logger.info(f'Using a non-existent geometry index in weightList. (geoIndex: {index})')
                     res = False
                 else:
                     return False
 
-        for matrixIndex, geoWeightData in localWeightList.items():
-            for geoIndex in geoWeightData.key():
-                if geoIndex not in geometryIndicesStr:
+        for matrixIndex, geoWeightData in self.localWeightList.items():
+            for geoIndexStr in geoWeightData.keys():
+                if geoIndexStr not in geometryStrIndices:
                     if verbose:
-                        logger.info(f'Using a non-existent geometry index in localWeightList. (geoIndex: {geoIndex}, inputDataIndex: {matrixIndex})')
+                        logger.info(f'Using a non-existent geometry index in localWeightList. (geoIndex: {geoIndexStr}, inputDataIndex: {matrixIndex})')
                         res = False
                     else:
                         return False
@@ -324,21 +325,20 @@ class Rpq9MultiSoftModData:
         shiftedIndices = {}
         shiftValueCache = 0
         for i, geoIndex in enumerate(self.geometryIndices):
-            geoIndexint = int(geoIndex)
-            shiftedIndex = geoIndexint + shiftValueCache
+            shiftedIndex = geoIndex + shiftValueCache
             if shiftedIndex == i:
-                shiftedIndices[geoIndex] = str(shiftedIndex)
+                shiftedIndices[str(geoIndex)] = str(shiftedIndex)
             else:
                 shiftValueCache -= shiftedIndex-i
-                shiftedIndices[geoIndex] = str(geoIndexint + shiftValueCache)
+                shiftedIndices[str(geoIndex)] = str(geoIndex + shiftValueCache)
 
-        for geoIndex, weights in self.weightList.items():
-            new_data['weightList'][shiftedIndices[geoIndex]] = weights
+        for geoIndexStr, weights in self.weightList.items():
+            new_data['weightList'][shiftedIndices[geoIndexStr]] = weights
 
         for matrixIndex, geoWeightData in self.localWeightList.items():
             new_data['localWeightList'][matrixIndex] = {}
-            for geoIndex, weights in geoWeightData.items():
-                new_data['localWeightList'][matrixIndex][shiftedIndices[geoIndex]] = weights
+            for geoIndexStr, weights in geoWeightData.items():
+                new_data['localWeightList'][matrixIndex][shiftedIndices[geoIndexStr]] = weights
 
 
         self.geometryIndices = new_data['geometryIndices']

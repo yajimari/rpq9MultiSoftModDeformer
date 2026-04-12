@@ -67,6 +67,7 @@ def createRpq9MultiSoftMod(geos:list[str]|str, controllerNum:int=0, **kwargs):
         cmds.connectAttr(f'{centerController}.wm[0]', f'{deformer}.inputData[{i}].centerMatrix', f=True)
         cmds.connectAttr(f'{modifyController}.wm[0]', f'{deformer}.inputData[{i}].modifyMatrix', f=True)
         cmds.connectAttr(f'{centerController}.falloffRadius', f'{deformer}.inputData[{i}].falloffRadius', f=True)
-        controllers.append([centerController, modifyController])
+        controllers.append(centerController)
+        controllers.append(modifyController)
     res = [deformer] + controllers
     return res

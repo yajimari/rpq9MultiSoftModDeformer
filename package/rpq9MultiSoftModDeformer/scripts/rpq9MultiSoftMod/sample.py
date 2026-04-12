@@ -21,19 +21,21 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.  
 '''
-import math
 import random
 import maya.cmds as cmds
 
-from .constants import PLUGIN_NAME, PLUGIN_NODE_NAME
+from .constants import PLUGIN_NODE_NAME
 from .controller import createController
 from .utils import createRpq9MultiSoftMod
 
 
 def createTestMultiSoftMod(num:int) -> list[list[str]]:
     plane = cmds.polyPlane()
-    defromer, controller = createRpq9MultiSoftMod(plane[0], num)
-    return controller
+    controllers = []
+    res = createRpq9MultiSoftMod(plane[0], num)
+    if len(res) > 2:
+        controllers = res[1:]
+    return controllers
 
 
 def createTestMultiSoftModSeries(num:int) -> list[list[str]]:
@@ -46,7 +48,8 @@ def createTestMultiSoftModSeries(num:int) -> list[list[str]]:
         cmds.connectAttr(f'{centerController}.wm[0]', f'{deformer}.inputData[0].centerMatrix', f=True)
         cmds.connectAttr(f'{modifyController}.wm[0]', f'{deformer}.inputData[0].modifyMatrix', f=True)
         cmds.connectAttr(f'{centerController}.falloffRadius', f'{deformer}.inputData[0].falloffRadius', f=True)
-        controllers.append([centerController, modifyController])
+        controllers.append(centerController)
+        controllers.append(modifyController)
     return controllers
 
 
@@ -68,14 +71,15 @@ def createTestSoftMod(num:int) -> list[list[str]]:
             for axis in 'xyz':
                 cmds.setAttr(f'{handle}.{attr}{axis}', l=True, k=False, cb=False)
         cmds.setAttr(f'{handle}.v', 0, l=True, k=False, cb=False)
-        controllers.append([centerController, modifyController])
+        controllers.append(centerController)
+        controllers.append(modifyController)
     return controllers
 
 
-def setTestRandAnim(controllers:list[list[str]], animAttr:str='ty') -> None:
+def setTestRandAnim(controllers:list[str], animAttr:str='ty') -> None:
     random.seed(0)
 
-    for centerController, modifyController in controllers:
+    for centerController, modifyController in zip(controllers[0::2], controllers[1::2]):
         cmds.setAttr(f'{centerController}.translate', random.random()-0.5, random.random()-0.5, random.random()-0.5, type='double3')
         cmds.setKeyframe(modifyController, attribute=animAttr, time=1, value=random.random())
         cmds.setKeyframe(modifyController, attribute=animAttr, time=100, value=random.random())

@@ -24,9 +24,8 @@ SOFTWARE.
 import maya.cmds as cmds
 import maya.api.OpenMaya as om2
 
-from .constants import PLUGIN_NAME, PLUGIN_NODE_NAME
-from .utils import isMultiSoftModNode, getMPlug
-from .jsonIO import readJson, writeJson
+from .constants import PLUGIN_NODE_NAME
+from .utils import isMultiSoftModNodeMObj, getMPlug
 from .model import Rpq9MultiSoftModData, DeformerWeights, DeformerWeightList
 
 
@@ -40,7 +39,7 @@ def isVertexWeightAttriubte(plug:om2.MPlug) -> bool:
     
     elementPlug = plug.elementByLogicalIndex(0)
     childPlug = elementPlug.child(0)
-    if not childPlug.isArray or childPlug.attribute().hasFn(om2.MFn.kNumericAttribute):
+    if not childPlug.isArray or not childPlug.attribute().hasFn(om2.MFn.kNumericAttribute):
         return False
     return True
 
@@ -52,10 +51,10 @@ def copyVertexWeightAttribute(source:str, target:str) -> None:
     sourcePlug = getMPlug(source)
     targetPlug = getMPlug(target)
 
-    if isVertexWeightAttriubte(sourcePlug):
+    if not isVertexWeightAttriubte(sourcePlug):
         raise TypeError(f'"{source}" is not vertex weight attriubte.')
     
-    if isVertexWeightAttriubte(targetPlug):
+    if not isVertexWeightAttriubte(targetPlug):
         raise TypeError(f'"{target}" is not vertex weight attriubte.')
 
     sourceChild = sourcePlug.elementByLogicalIndex(0).child(0).name().split('.')[-1]
@@ -96,7 +95,7 @@ def getConnectedMultiSoftModInputDataPlugs(node:str) -> list[om2.MPlug]:
     iter = om2.MItDependencyGraph(mobj, om2.MFn.kPluginDeformerNode, om2.MItDependencyGraph.kDownstream, om2.MItDependencyGraph.kBreadthFirst)
     plugs = []
     while not iter.isDone():
-        if isMultiSoftModNode(iter.currentNode()):
+        if isMultiSoftModNodeMObj(iter.currentNode()):
             plugs.append(iter.currentPlug())
         iter.next()
     return plugs
@@ -126,15 +125,14 @@ def copyMultiSoftModDeformerWeights(source:str, target:str) -> None:
     target_geos = cmds.deformer(target, q=True, g=True)
     if not len(source_geos) == len(target_geos):
         raise RuntimeError('Not same deformer geometry num.')
-    
-    stashWeightAttr(source)
+
     for source_geo, target_geo in zip(source_geos, target_geos):
+        stashWeightAttr(source)
         mi = cmds.getAttr(f'{source}.inputData', mi=True) or []
         for currentIndex in mi:
             copyVertexWeightAttribute(f'{source}.inputData[{currentIndex}].localWeightList', f'{source}.weightList')
             cmds.copyDeformerWeights(sourceDeformer=source, sourceShape=source_geo, destinationDeformer=target, destinationShape=target_geo, noMirror=True, surfaceAssociation='closestComponent')
             copyVertexWeightAttribute(f'{target}.weightList', f'{target}.inputData[{currentIndex}].localWeightList')
-
         unstashWeightAttr(source)
         cmds.copyDeformerWeights(sourceDeformer=source, sourceShape=source_geo, destinationDeformer=target, destinationShape=target_geo, noMirror=True, surfaceAssociation='closestComponent')
 
@@ -142,11 +140,10 @@ def copyMultiSoftModDeformerWeights(source:str, target:str) -> None:
 def getVertexWeightAttributeData(attr:str) -> DeformerWeightList:
     plug = getMPlug(attr)
 
-    if isVertexWeightAttriubte(plug):
+    if not isVertexWeightAttriubte(plug):
         raise TypeError(f'"{attr}" is not vertex weight attriubte.')
 
     res = DeformerWeightList()
-    res = {}
     geoMultiIndices = plug.getExistingArrayAttributeIndices()
     for geoIndex in geoMultiIndices:
         child = plug.elementByLogicalIndex(geoIndex).child(0)
@@ -154,9 +151,9 @@ def getVertexWeightAttributeData(attr:str) -> DeformerWeightList:
         vertexIndices = child.getExistingArrayAttributeIndices()
         for vertexIndex in vertexIndices:
             elementPlug = child.elementByLogicalIndex(vertexIndex)
-            currentWeights[vertexIndex] = elementPlug.asDouble()
+            currentWeights[str(vertexIndex)] = elementPlug.asDouble()
 
-        res[geoIndex] = currentWeights
+        res[str(geoIndex)] = currentWeights
 
     return res
 
@@ -164,8 +161,10 @@ def getVertexWeightAttributeData(attr:str) -> DeformerWeightList:
 def setVertexWeightAttributeData(attr:str, data:DeformerWeightList) -> None:
     plug = getMPlug(attr)
 
-    if isVertexWeightAttriubte(plug):
+    if not isVertexWeightAttriubte(plug):
         raise TypeError(f'"{attr}" is not vertex weight attriubte.')
+
+    cmds.removeMultiInstance(attr, all=True)
 
     for geoIndex, currentGeoData in data.items():
         geoPlug = plug.elementByLogicalIndex(int(geoIndex))

@@ -23,7 +23,7 @@ SOFTWARE.
 '''
 import maya.cmds as cmds
 
-from .constants import PLUGIN_NAME, PLUGIN_NODE_NAME
+from .constants import PLUGIN_NODE_NAME
 from .utils import getDeformerGeometries, getMultiSoftModNodes
 from .deformerWeight import (
     copyVertexWeightAttribute,
