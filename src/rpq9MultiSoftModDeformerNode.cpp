@@ -33,13 +33,13 @@ SOFTWARE.
 #include <maya/MFnMatrixData.h>
 #include <maya/MPointArray.h>
 #include <maya/MVector.h>
+#include <maya/MTransformationMatrix.h>
 
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
 #include <maya/MOpenCLInfo.h>
 
 #include "rpq9MultiSoftModDeformerNode.h"
-
 
 namespace {
     using FalloffWeightFunc = float(*)(float, float);
@@ -403,17 +403,37 @@ MStatus Rpq9MultiSoftModDeformer::initialize(){
 
 
 MStatus Rpq9MultiSoftModDeformer::prepareDeform(MDataBlock& block, unsigned int multiIndex, unsigned int changeFlags){
+    if (changeFlags & MPxGeometryFilter::MPxChangeNotificationFlags::kTopologyChange){
+        localWeightDirtyMap[multiIndex] = true;
+    }
+
     return MS::kSuccess;
 }
 
 
-MStatus Rpq9MultiSoftModDeformer::preEvaluation(const MDGContext& context,
-    const MEvaluationNode& evaluationNode)
+MStatus Rpq9MultiSoftModDeformer::setDependentsDirty(
+        const MPlug &plugBeingDirtied,
+        MPlugArray &affectedPlugs )
 {
-    isLocalWeightDirty = evaluationNode.dirtyPlugExists(Rpq9MultiSoftModDeformer::localWeightList);
-    return MS::kSuccess;
-}
+    MStatus status;
 
+    MObject currentAttr = plugBeingDirtied.attribute(&status);
+    if (!status) return status;
+
+    if (currentAttr == Rpq9MultiSoftModDeformer::inputData ||
+        currentAttr == Rpq9MultiSoftModDeformer::localWeightList ||
+        currentAttr == Rpq9MultiSoftModDeformer::localWeights){
+        for (auto& item : localWeightDirtyMap) {
+            item.second = true;
+        }
+        MPlug outPlug(thisMObject(), outputGeom);
+        affectedPlugs.append(outPlug);
+        for (unsigned int i=0; i<outPlug.numElements(); ++i){
+            affectedPlugs.append(outPlug.elementByPhysicalIndex(i));
+        }
+    }
+    return status;
+}
 
 
 inline void getLocalSoftModData(   MDataHandle& inputDataDataHandle,
@@ -424,8 +444,8 @@ inline void getLocalSoftModData(   MDataHandle& inputDataDataHandle,
                                     cl_float4& scale,
                                     cl_float4& shear,
                                     float& falloffRadiusValue,
-                                    MFnMatrixData& fnMat
-){
+                                    MFnMatrixData& fnMat)
+{
     MDataHandle childHandle = inputDataDataHandle.child(Rpq9MultiSoftModDeformer::localEnvelope);
     localEnvelopeValue = childHandle.asFloat();
 
@@ -469,7 +489,7 @@ inline void getLocalSoftModData(   MDataHandle& inputDataDataHandle,
 }
 
 
-inline void resizeSoftModData(SoftModData& data, unsigned int size) {
+inline void resizeSoftModData(SoftModData& data, unsigned int size){
     data.localEnvelopeValues.resize(size);
     data.centerPositions.resize(size);
     data.translations.resize(size);
@@ -480,12 +500,22 @@ inline void resizeSoftModData(SoftModData& data, unsigned int size) {
 }
 
 
+unsigned int Rpq9MultiSoftModDeformer::getInputDataElementCount(
+    MDataBlock& block,
+    MStatus& status)
+{
+    MArrayDataHandle h = block.inputArrayValue(Rpq9MultiSoftModDeformer::inputData, &status);
+    if (!status) return 0;
+    return h.elementCount();
+}
+
+
 unsigned int Rpq9MultiSoftModDeformer::getInputDataData(MDataBlock& block,
                                                         SoftModData& data,
                                                         MStatus& status) 
 {
     MArrayDataHandle inputDataArrayDataHandle = block.inputArrayValue(Rpq9MultiSoftModDeformer::inputData, &status);
-    if (MS::kSuccess != status) return 0;
+    if (!status) return 0;
 
     unsigned int inputDataNum = inputDataArrayDataHandle.elementCount();
     if (inputDataNum <= 0) return 0;
@@ -518,7 +548,8 @@ unsigned int Rpq9MultiSoftModDeformer::getInputDataData(MDataBlock& block,
 unsigned int Rpq9MultiSoftModDeformer::getInputDataData(MDataBlock& block,
                                                         SoftModData& data,
                                                         std::vector<float>& localWeightValues,
-                                                        unsigned int vertexNum,
+                                                        unsigned int affectCount,
+                                                        const MIndexMapper& mapper,
                                                         unsigned int multiIndex,
                                                         MStatus& status)
 {
@@ -529,7 +560,7 @@ unsigned int Rpq9MultiSoftModDeformer::getInputDataData(MDataBlock& block,
     if (inputDataNum <= 0) return 0;
 
     resizeSoftModData(data, inputDataNum);
-    localWeightValues.resize(inputDataNum*vertexNum, 1.0f);
+    localWeightValues.assign(inputDataNum*affectCount, 1.0f);
 
     MFnMatrixData fnMat;
 
@@ -570,7 +601,12 @@ unsigned int Rpq9MultiSoftModDeformer::getInputDataData(MDataBlock& block,
 
         for (unsigned int j = 0; j < localWeightArrayHandle.elementCount(); ++j) {
             unsigned int currentIndex = localWeightArrayHandle.elementIndex();
-            localWeightValues[i*vertexNum + currentIndex] = localWeightArrayHandle.inputValue().asFloat();
+            const unsigned int affectIndex = mapper.fullToAffect(currentIndex);
+            if (affectIndex == MIndexMapper::InvalidIndex) {
+                localWeightArrayHandle.next();
+                continue;
+            }
+            localWeightValues[i*affectCount + affectIndex] = localWeightArrayHandle.inputValue().asFloat();
             localWeightArrayHandle.next();
         }
 
@@ -602,13 +638,15 @@ MStatus Rpq9MultiSoftModDeformer::deform(MDataBlock& block, MItGeometry& iter, c
     SoftModData& currentIndexData = softModDataCache[multiIndex];
     std::vector<float>& localWeightValues = localWeightValuesCache[multiIndex];
     unsigned int inputDataNum = 0;
-    if (isLocalWeightDirty || localWeightValues.size() == 0) {
-        inputDataNum = Rpq9MultiSoftModDeformer::getInputDataData(block, currentIndexData, localWeightValues, affectCount, multiIndex, status);
+    if (localWeightDirtyMap[multiIndex] || localWeightValues.empty()) {
+        inputDataNum = Rpq9MultiSoftModDeformer::getInputDataData(block, currentIndexData, localWeightValues, affectCount, mapper, multiIndex, status);
+        if (!status) return status;
+        localWeightDirtyMap[multiIndex] = false;
     }
     else {
         inputDataNum = Rpq9MultiSoftModDeformer::getInputDataData(block, currentIndexData, status);
+        if (!status) return status;
     }
-    
 
     MDataHandle falloffModeDataHandle = block.inputValue(falloffMode, &status);
     if (MS::kSuccess != status) return status;
@@ -639,7 +677,6 @@ MStatus Rpq9MultiSoftModDeformer::deform(MDataBlock& block, MItGeometry& iter, c
             falloffWeightFunc = [](float, float) {return 1.0f;};
             break;
     }
-
 
     constexpr cl_float4 zeroVector = { 0.0f, 0.0f, 0.0f, 1.0f };
     constexpr cl_float4 oneVector = { 1.0f, 1.0f, 1.0f, 1.0f };
@@ -762,22 +799,34 @@ MPxGPUDeformer::DeformerStatus Rpq9MultiSoftModGPUDeformer::evaluate(
 
     MPxGPUDeformer::DeformerStatus deformerStatus = prepareEvaluation(block, evaluationNode, plug, inputPlugs, inputData, outputData, clEvent);
     if (deformerStatus != MPxGPUDeformer::kDeformerSuccess) return deformerStatus;
-    
-    prepareAffectMapBuffer();
+
+    bool affectMapChanged = prepareAffectMapBuffer();
     prepareWeightsBuffer(evaluationNode);
 
     unsigned int count = affectCount();
+    unsigned int inputDataNum = Rpq9MultiSoftModDeformer::getInputDataElementCount(block, status);
+    if (!status) return MPxGPUDeformer::kDeformerFailure;
 
-    bool updateLocalWeight = MPxGPUDeformer::isBufferUpdateNeeded(localWeightBuffer, evaluationNode, Rpq9MultiSoftModDeformer::localWeightList);
+    bool updateLocalWeight = 
+        affectMapChanged ||
+        count != localWeightAffectCount ||
+        inputDataNum != localWeightInputDataNum ||
+        MPxGPUDeformer::isBufferUpdateNeeded(localWeightBuffer, evaluationNode, Rpq9MultiSoftModDeformer::localWeightList);
 
-    unsigned int inputDataNum = 0;
+    const MIndexMapper& mapper = indexMapper();
+
     if (updateLocalWeight) {
         std::vector<float> localWeightValues;
-        inputDataNum = Rpq9MultiSoftModDeformer::getInputDataData(block, softModDataCache, localWeightValues, count, multiIndex(), status);
+        inputDataNum = Rpq9MultiSoftModDeformer::getInputDataData(block, softModDataCache, localWeightValues, count, mapper, multiIndex(), status);
+        if (!status) return MPxGPUDeformer::kDeformerFailure;
         MOpenCLUtils::uploadToGPU(localWeightValues, localWeightBuffer, MOpenCLUtils::kBlocking);
+
+        localWeightAffectCount = count;
+        localWeightInputDataNum = inputDataNum;
     }
     else {
         inputDataNum = Rpq9MultiSoftModDeformer::getInputDataData(block, softModDataCache, status);
+        if (!status) return MPxGPUDeformer::kDeformerFailure;
     }
         
 
@@ -794,7 +843,7 @@ MPxGPUDeformer::DeformerStatus Rpq9MultiSoftModGPUDeformer::evaluate(
     MOpenCLUtils::uploadToGPU(softModDataCache.falloffRadiusValues, falloffRadiusValuesBuffer, MOpenCLUtils::kBlocking);
 
     cl_int err = CL_SUCCESS;
-    
+
     prepareKernels();
     MAutoCLKernel& currentKernel = kernelInfoArray[falloffModeValue];
 
@@ -862,9 +911,13 @@ void Rpq9MultiSoftModGPUDeformer::terminate(){
     scalesBuffer.reset();
     shearsBuffer.reset();
     falloffRadiusValuesBuffer.reset();
+    localWeightBuffer.reset();
     for(std::size_t i=0; i<kernelInfoArray.size(); ++i){
         MOpenCLInfo::releaseOpenCLKernel(kernelInfoArray[i]);
     }
+    kernelInfoArray.clear();
+    localWeightInputDataNum = 0;
+    localWeightAffectCount = 0;
     MPxGPUStandardDeformer::terminate();
 }
 

@@ -43,7 +43,7 @@ inline float remap0to1(const float value, const float maxValue)
 
 inline float cosineFalloff(float value){
     const float PI_F = 3.14159265358979323846f;
-    return 0.5f * (1.0f + cos(PI_F * value));
+    return 0.5f * (1.0f + native_cos(PI_F * value));
 }
 
 
@@ -297,10 +297,10 @@ __kernel void noneSoftMod(
         float4 localPt = clPt - center;
         localPt.w = 1.0f;
         float4 newPtBase = mat4MulVec4(transMat, localPt);
-        addPt += (newPtBase - localPt) * localEnvelopes[j] * localWeights[j * numVertices + vid];
+        addPt += (newPtBase - localPt) * localEnvelopes[j] * localWeights[j * numVertices + gid];
     }
 
-    float weight = (vertWeights ? vertWeights[vid] * deformerEnvelope : deformerEnvelope);
+    float weight = (vertWeights ? vertWeights[gid] * deformerEnvelope : deformerEnvelope);
     float3 outPt = pt + weight * (float3)(addPt.x, addPt.y, addPt.z);
 
     vstore3(outPt, vid, deformedPositions);
@@ -353,13 +353,13 @@ __kernel void linearSoftMod(
                                         scales[j],
                                         shears[j],
                                         localEnvelopes[j],
-                                        localWeights[j * numVertices + vid],
+                                        localWeights[j * numVertices + gid],
                                         falloffWeight,
                                         zeroVec,
                                         oneVec);
     }
 
-    float weight = (vertWeights ? vertWeights[vid] * deformerEnvelope : deformerEnvelope);
+    float weight = (vertWeights ? vertWeights[gid] * deformerEnvelope : deformerEnvelope);
     float3 outPt = pt + weight * (float3)(addPt.x, addPt.y, addPt.z);
 
     vstore3(outPt, vid, deformedPositions);
@@ -412,13 +412,13 @@ __kernel void smoothSoftMod(
                                         scales[j],
                                         shears[j],
                                         localEnvelopes[j],
-                                        localWeights[j * numVertices + vid],
+                                        localWeights[j * numVertices + gid],
                                         falloffWeight,
                                         zeroVec,
                                         oneVec);
     }
 
-    float weight = (vertWeights ? vertWeights[vid] * deformerEnvelope : deformerEnvelope);
+    float weight = (vertWeights ? vertWeights[gid] * deformerEnvelope : deformerEnvelope);
     float3 outPt = pt + weight * (float3)(addPt.x, addPt.y, addPt.z);
 
     vstore3(outPt, vid, deformedPositions);
@@ -471,13 +471,13 @@ __kernel void splineSoftMod(
                                         scales[j],
                                         shears[j],
                                         localEnvelopes[j],
-                                        localWeights[j * numVertices + vid],
+                                        localWeights[j * numVertices + gid],
                                         falloffWeight,
                                         zeroVec,
                                         oneVec);
     }
 
-    float weight = (vertWeights ? vertWeights[vid] * deformerEnvelope : deformerEnvelope);
+    float weight = (vertWeights ? vertWeights[gid] * deformerEnvelope : deformerEnvelope);
     float3 outPt = pt + weight * (float3)(addPt.x, addPt.y, addPt.z);
 
     vstore3(outPt, vid, deformedPositions);
@@ -530,13 +530,13 @@ __kernel void smoothStepSoftMod(
                                         scales[j],
                                         shears[j],
                                         localEnvelopes[j],
-                                        localWeights[j * numVertices + vid],
+                                        localWeights[j * numVertices + gid],
                                         falloffWeight,
                                         zeroVec,
                                         oneVec);
     }
 
-    float weight = (vertWeights ? vertWeights[vid] * deformerEnvelope : deformerEnvelope);
+    float weight = (vertWeights ? vertWeights[gid] * deformerEnvelope : deformerEnvelope);
     float3 outPt = pt + weight * (float3)(addPt.x, addPt.y, addPt.z);
 
     vstore3(outPt, vid, deformedPositions);
@@ -589,13 +589,13 @@ __kernel void easeInOutSoftMod(
                                         scales[j],
                                         shears[j],
                                         localEnvelopes[j],
-                                        localWeights[j * numVertices + vid],
+                                        localWeights[j * numVertices + gid],
                                         falloffWeight,
                                         zeroVec,
                                         oneVec);
     }
 
-    float weight = (vertWeights ? vertWeights[vid] * deformerEnvelope : deformerEnvelope);
+    float weight = (vertWeights ? vertWeights[gid] * deformerEnvelope : deformerEnvelope);
     float3 outPt = pt + weight * (float3)(addPt.x, addPt.y, addPt.z);
 
     vstore3(outPt, vid, deformedPositions);

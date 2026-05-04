@@ -35,7 +35,7 @@ while(POS LESS KERNEL_LEN)
   string(SUBSTRING "${KERNEL_CODE_RAW}" ${POS} ${CUR_SIZE} KERNEL_CHUNK)
 
   # Emit adjacent raw string literals; C/C++ concatenates them automatically
-  file(APPEND "${OUT_FILE}" "R\"EMB(\n${KERNEL_CHUNK})EMB\"\n")
+  file(APPEND "${OUT_FILE}" "R\"EMB(${KERNEL_CHUNK})EMB\"\n")
 
   math(EXPR POS "${POS} + ${CUR_SIZE}")
 endwhile()

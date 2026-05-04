@@ -22,6 +22,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.  
 '''
 import maya.cmds as cmds
+import maya.mel as mel
 
 from .constants import PLUGIN_NODE_NAME
 from .utils import getDeformerGeometries, getMultiSoftModNodes
@@ -52,6 +53,15 @@ def selectDeformerGeometries():
     currentDeformer = getCurrentDeformer()
     geos = getDeformerGeometries(currentDeformer)
     cmds.select(geos)
+
+
+def setArtTool():
+    currentDeformer = getCurrentDeformer()
+    mel.eval(f'''
+    source "artAttrCreateMenuItems.mel"; 
+    artSetToolAndSelectAttr( "artAttrCtx", "rpq9MultiSoftMod.{currentDeformer}.weights" );
+    toolPropertyWindow;
+    ''')
 
 
 def setDeformerMenu():
@@ -150,7 +160,24 @@ def showWindow():
     cmds.setParent('..')
 
     cmds.separator(h=5, st='none')
-    cmds.button(l='Select Geometry', h=30, c=lambda *args: selectDeformerGeometries())
+    geoForm = cmds.formLayout()
+    selGeoButton = cmds.button(l='Select Geometry', h=30, c=lambda *args: selectDeformerGeometries())
+    paintToolButton = cmds.button(l='Paint Tool', h=10, c=lambda *args: setArtTool())
+    cmds.formLayout(geoForm, e=True,
+        af=[
+            [selGeoButton, 'top', 0],
+            [selGeoButton, 'left', 0],
+            [selGeoButton, 'bottom', 0],
+            [paintToolButton, 'top', 0],
+            [paintToolButton, 'right', 0],
+            [paintToolButton, 'bottom', 0]
+        ],
+        ap=[
+            [selGeoButton, 'right', 2, 50],
+            [paintToolButton, 'left', 2, 50]
+        ]
+    )
+    cmds.setParent('..')
     cmds.separator(h=10, st='single')
 
     cmds.rowLayout(numberOfColumns=3, adjustableColumn3=2)

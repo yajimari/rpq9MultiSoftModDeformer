@@ -32,6 +32,10 @@ import rpq9MultiSoftMod.sample
 rpq9MultiSoftMod.sample.createAnimetedMultiSoftModScene()
 ```
 
+## 📘Documentation
+Detailed documentation is provided in a separate file.  
+Please refer to `./reference.md`.
+
 ## 🧩Plugin Directory Structure
 
 The correct file placement when using the plugin is as follows (Windows).

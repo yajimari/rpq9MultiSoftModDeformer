@@ -22,20 +22,27 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 #pragma once
-#include<array>
-#include<map>
+#include <array>
+#include <map>
+#include <vector>
 #include <maya/MPxDeformerNode.h>
 #include <maya/MItGeometry.h>
 
 #include <maya/MStatus.h>
 #include <maya/MTypeId.h>
 #include <maya/MPlug.h>
+#include <maya/MPlugArray.h>
+#include <maya/MStringArray.h>
 
 #include <maya/MDataBlock.h>
 #include <maya/MDataHandle.h>
 
 #include <maya/MMatrix.h>
 #include <maya/MString.h>
+
+#include <maya/MDagModifier.h>
+#include <maya/MEvaluationNode.h>
+#include <maya/MIndexMapper.h>
 
 #include <maya/MPxGPUStandardDeformer.h>
 #include <maya/MGPUDeformerRegistry.h>
@@ -70,8 +77,8 @@ public:
                           unsigned int multiIndex,
                           unsigned int changeFlags) override;
 
-    MStatus preEvaluation(  const MDGContext& context,
-                            const MEvaluationNode& evaluationNode) override;
+    MStatus setDependentsDirty( const MPlug &plugBeingDirtied,
+                                MPlugArray &affectedPlugs) override;
 
     MStatus	deform(MDataBlock& block,
                     MItGeometry& iter,
@@ -80,6 +87,9 @@ public:
 
     MObject& accessoryAttribute() const override;
     MStatus accessoryNodeSetup(MDagModifier& cmd) override;
+    
+    static unsigned int getInputDataElementCount(   MDataBlock& block,
+                                                    MStatus& status);
 
     static unsigned int getInputDataData(   MDataBlock& block,
                                             SoftModData& data,
@@ -88,7 +98,8 @@ public:
     static unsigned int getInputDataData(   MDataBlock& block,
                                             SoftModData& data,
                                             std::vector<float>& localWeightValues,
-                                            unsigned int vertexNum,
+                                            unsigned int affectCount,
+                                            const MIndexMapper& mapper,
                                             unsigned int multiIndex,
                                             MStatus& status);
 
@@ -121,7 +132,7 @@ public:
 private:
     std::map<unsigned int, SoftModData> softModDataCache;
     std::map<unsigned int, std::vector<float>> localWeightValuesCache;
-    bool isLocalWeightDirty = false;
+    std::map<unsigned int, bool> localWeightDirtyMap;
 };
 
 
@@ -158,6 +169,9 @@ private:
     SoftModData softModDataCache;
 
     std::vector<MAutoCLKernel> kernelInfoArray;
+
+    unsigned int localWeightInputDataNum = 0;
+    unsigned int localWeightAffectCount = 0;
 };
 
 
