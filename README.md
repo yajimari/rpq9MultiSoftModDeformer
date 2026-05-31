@@ -24,7 +24,7 @@
 ## 🚀Quick Start
 
 1. Download the files in this repository from the Releases page.
-2. Copy `rpq9MultiSoftModDeformer` and `rpq9MultiSoftModDeformer.mod` in the package below to the directory set in `MAYA_MODULE_PATH`.(You can check the destination directory by running the following code.)
+2. Copy `rpq9MultiSoftModDeformer` and `rpq9MultiSoftModDeformer.mod` in the package below to the directory set in `MAYA_MODULE_PATH`.(You can check the destination directory by running the code below.)
 ```python
 import os
 from pathlib import Path
