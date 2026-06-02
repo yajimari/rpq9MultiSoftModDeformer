@@ -24,14 +24,14 @@
 ## 🚀Quick Start
 
 1. Download the files in this repository from the Releases page.
-2. Copy `rpq9MultiSoftModDeformer` and `rpq9MultiSoftModDeformer.mod` from the `package` folder to the directory set in `MAYA_MODULE_PATH`.(You can check the destination directory by running the code below.)
+2. Copy `rpq9MultiSoftModDeformer` and `rpq9MultiSoftModDeformer.mod` in the package below to the directory set in `MAYA_MODULE_PATH`.(You can check the destination directory by running the following code.)
 ```python
 import os
 from pathlib import Path
 
 appDir = Path(os.environ.get('MAYA_APP_DIR'))
 moduleDir = appDir.joinpath('modules')
-print(moduleDir.as_posix())
+print('Installation directory: ', moduleDir.as_posix())
 ```
 3. start Maya and run the code below. 
 ```python
